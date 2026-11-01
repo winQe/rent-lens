@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Yarn 4 (installed through corepack, so no committed release)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+.pnp.*
