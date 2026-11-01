@@ -1,0 +1,20 @@
+name: Set up
+description: Install Node, enable corepack, restore the Yarn cache and install dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+    - run: corepack enable
+      shell: bash
+    - id: yarn-cache
+      run: echo "dir=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.yarn-cache.outputs.dir }}
+        key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+        restore-keys: yarn-${{ runner.os }}-
+    - run: yarn install --immutable
+      shell: bash
