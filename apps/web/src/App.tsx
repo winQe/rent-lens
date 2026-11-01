@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { Header } from './components/Header.tsx';
+import { AboutPage } from './pages/AboutPage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
 
 export function App() {
@@ -14,6 +15,7 @@ export function App() {
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto flex max-w-page flex-col gap-7 px-4 pb-16 sm:px-6">
         <Routes>
+          <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
