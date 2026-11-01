@@ -9,6 +9,7 @@ const external = Object.keys(pkg.dependencies).filter((name) => !name.startsWith
 
 await build({
   entryPoints: {
+    main: 'src/main.ts',
     migrate: 'src/cli/migrate.ts',
     ingest: 'src/cli/ingest.ts',
   },
