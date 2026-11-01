@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router';
+import { Header } from './components/Header.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
 
 export function App() {
@@ -10,6 +11,7 @@ export function App() {
       >
         Skip to content
       </a>
+      <Header />
       <main id="main" tabIndex={-1} className="mx-auto flex max-w-page flex-col gap-7 px-4 pb-16 sm:px-6">
         <Routes>
           <Route path="*" element={<NotFoundPage />} />
