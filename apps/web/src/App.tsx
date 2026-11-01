@@ -3,6 +3,7 @@ import { Header } from './components/Header.tsx';
 import { AboutPage } from './pages/AboutPage.tsx';
 import { BudgetPage } from './pages/BudgetPage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
+import { StreetPage } from './pages/StreetPage.tsx';
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
       <main id="main" tabIndex={-1} className="mx-auto flex max-w-page flex-col gap-7 px-4 pb-16 sm:px-6">
         <Routes>
           <Route path="/" element={<BudgetPage />} />
+          <Route path="/streets/:town/:street" element={<StreetPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
