@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+
+/* RentLens plum palette. Text colour pairs pass WCAG AA (4.5:1). */
+@theme {
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* Type: Tailwind's scale (text-sm to text-4xl) for most text, plus two fluid sizes. */
+  --text-hero: clamp(32px, 5vw, 44px);
+  --text-amount: clamp(44px, 8vw, 64px);
+  --container-page: 1160px;
+
+  --color-ground: #fbf6f8;
+  --color-ink: #2a1726;
+  --color-muted: #61505d;
+  --color-plum: #6e2c5e;
+  --color-plum-dark: #57224a;
+  --color-soft: #f3e1ec;
+  --color-soft-ink: #5a2350;
+  --color-line: #e8d7e1;
+  /* Borders of form controls: 3.75:1 on white, passes WCAG 1.4.11 (3:1). */
+  --color-control: #957d8d;
+  --color-dot: #efdde8;
+  --color-note: #fff4de;
+  --color-note-ink: #5c4400;
+  --color-warn: #fdefc9;
+  --color-warn-ink: #6b4600;
+  --color-error: #b42318;
+  --color-good: #e4f3ea;
+  --color-good-ink: #14532d;
+  --color-bad: #fde8e4;
+  --color-bad-ink: #7a1f12;
+
+  /* Chart and hover accents. */
+  --color-seq-1: #d59ac2;
+  --color-seq-2: #a65a8e;
+  /* Neutral grey (no plum hue) = "not applicable", so it never reads as a low share. */
+  --color-map-empty: #e9e5e7;
+  /* Map steps: one hue, light to dark, so the map reads without colour vision. Neighbouring
+     shades differ by 1.6 to 2.1:1. Labels use ink on map-0 and map-1, white on the rest (4.5:1 or more). */
+  --color-map-0: #efd9e7;
+  --color-map-1: #d39bc0;
+  --color-map-2: #a75890;
+  --color-map-3: #7a2f67;
+  --color-map-4: #4a1a3f;
+}
+
+/* Legend swatch matching the map's hatch pattern for "few or no rentals of this type". */
+@utility bg-hatch {
+  background: repeating-linear-gradient(45deg, var(--color-control) 0 1.5px, #ffffff 1.5px 4.5px);
+}
+
+@layer base {
+  body {
+    @apply bg-ground font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display leading-tight font-extrabold;
+  }
+  :focus-visible {
+    @apply rounded-md outline-3 outline-offset-2 outline-plum;
+  }
+}

@@ -31,6 +31,10 @@
       "enabled": false
     }
   },
+  "tailwind": {
+    // Lets the class-sorting rule know the theme tokens (text-hero, bg-map-2, ...).
+    "stylesheet": "./apps/web/src/styles.css"
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -39,6 +43,9 @@
         // tsconfig has noUncheckedIndexedAccess, so rows[0] is typed as possibly missing;
         // a `!` marks a place where the code has already checked that it is there.
         "noNonNullAssertion": "off"
+      },
+      "nursery": {
+        "useTailwindSortedClasses": "error"
       }
     }
   },
