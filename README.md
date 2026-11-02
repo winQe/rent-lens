@@ -87,7 +87,7 @@ These come from looking at the real data, not from guesses:
 - Each month, EventBridge Scheduler starts a Lambda that downloads the dataset to S3, and the new file starts a second Lambda inside the VPC that loads it. Splitting the ingest this way avoids a NAT gateway.
 - CloudWatch alarms cover API errors, failed ingests and database storage and CPU.
 
-The section "Not built yet for AWS" in `docs/DESIGN.md` lists what the application still needs before it can run there: reading the database secret at start-up, the two ingest entry points, and Lambda packaging in CI.
+`corepack yarn workspace @rent-lens/api build:lambda` builds the two Lambda packages the Terraform deploys (`build/api.zip` and `build/ingest.zip`). The section "Not built yet for AWS" in `docs/DESIGN.md` lists what is left: production hardening, and a first real deploy.
 
 ## Accessibility and security
 

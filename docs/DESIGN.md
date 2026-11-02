@@ -244,11 +244,13 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
 - A repeated query parameter (`budget=1&budget=2`) gets the right status, 400, but an unclear message.
 - `?flatType=1-ROOM` loads 1-room results, but there is no 1-room choice in the UI (too few rentals), so no flat type is selected.
 
+### Application code for AWS
+
+- **Database connection** (`apps/api/src/db/connection.ts`): with `DATABASE_URL` set (local, Docker), nothing changes. On AWS the Lambdas get `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_SECRET_ARN` and `DB_CA_PATH`: the password comes from the role's Secrets Manager secret at start-up, and the connection uses TLS checked against the RDS CA bundle, which RDS for Postgres 15 and later requires.
+- **Ingest handlers** (`apps/api/src/lambda/`): "fetch" calls the existing `downloadDataset` and writes the file to S3; "load" reads the object named in the S3 notification and calls the existing `ingest`, with the same checks as a local load. Both take their dependencies as parameters, so the tests run them with fakes and PGlite.
+- **Packages:** `corepack yarn workspace @rent-lens/api build:lambda` bundles each entry point with all its dependencies into one file and writes `build/api.zip` (`main.mjs`, `run.sh` for the Lambda Web Adapter, `rds-ca.pem`) and `build/ingest.zip` (`fetch.mjs`, `load.mjs`, `rds-ca.pem`), the paths the Terraform expects. CI builds both and checks that the bundles load with no `node_modules`.
+
 ### Not built yet for AWS
 
-The Terraform describes the target. These application changes are still needed before it can run there:
-
-- **Database settings:** the API reads `DATABASE_URL`. On AWS the Lambdas get `DB_HOST`, `DB_NAME`, `DB_USER` and `DB_SECRET_ARN` instead, so `config.ts` needs to read the password from Secrets Manager at start-up.
-- **Ingest entry points:** two small Lambda handlers. "fetch" calls the existing `downloadDataset` and writes the file to S3; "load" reads it from S3 and calls the existing `ingest` with that file.
-- **Packaging:** CI should build `api.zip` (the esbuild bundle, production `node_modules` and a `run.sh` that starts `node dist/main.js`) and `ingest.zip`, which the Terraform takes as `api_package_path` and `ingest_package_path`.
+- **A first deploy:** nothing has been applied to an AWS account. The first deploy also runs the one-time provisioning step (migrations, then the role passwords).
 - **Production hardening** (Trivy MEDIUM and LOW findings): CloudFront and S3 access logs, VPC flow logs, X-Ray tracing on the Lambdas, RDS IAM authentication, and a WAF in front of CloudFront.

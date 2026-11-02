@@ -30,6 +30,7 @@ Run from the repo root. Use `corepack yarn`, never npm.
 | Lint and format check | `corepack yarn lint` |
 | Format and fix | `corepack yarn format` |
 | Build | `corepack yarn build` |
+| Lambda packages | `corepack yarn workspace @rent-lens/api build:lambda` (writes `build/api.zip` and `build/ingest.zip`) |
 | Terraform check | `terraform -chdir=infra fmt -check -recursive`, then `terraform -chdir=infra init -backend=false`, `terraform -chdir=infra validate` and `terraform -chdir=infra test` (mocked AWS provider, no account needed) |
 
 Development without Docker for the app:
