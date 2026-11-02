@@ -27,9 +27,14 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    # Migrations run as the owner; the load runs as rentlens_ingest, which can write the data but
+    # not change the schema. These passwords are for the local stack only.
     environment:
       DATABASE_URL: postgres://rentlens:rentlens@db:5432/rentlens
-    command: ["sh", "-c", "node dist/migrate.js && node dist/ingest.js --if-empty"]
+      API_DB_PASSWORD: rentlens-api-local
+      INGEST_DB_PASSWORD: rentlens-ingest-local
+      INGEST_DATABASE_URL: postgres://rentlens_ingest:rentlens-ingest-local@db:5432/rentlens
+    command: ["sh", "-c", "node dist/migrate.js && node dist/roles.js && DATABASE_URL=$$INGEST_DATABASE_URL node dist/ingest.js --if-empty"]
     depends_on:
       db:
         condition: service_healthy
@@ -40,7 +45,8 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://rentlens:rentlens@db:5432/rentlens
+      # Read-only: rentlens_api can SELECT and nothing else.
+      DATABASE_URL: postgres://rentlens_api:rentlens-api-local@db:5432/rentlens
       CORS_ORIGINS: http://localhost:8080
       PORT: "3000"
     ports:
