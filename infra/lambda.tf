@@ -64,7 +64,7 @@ resource "aws_cloudwatch_log_group" "api" {
 resource "aws_lambda_function" "api" {
   function_name    = "${local.name}-api"
   role             = aws_iam_role.api.arn
-  runtime          = "nodejs22.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   filename         = var.api_package_path
   source_code_hash = filebase64sha256(var.api_package_path)
@@ -88,6 +88,8 @@ resource "aws_lambda_function" "api" {
     variables = merge(local.db_env, {
       DB_USER                      = "rentlens_api"
       DB_SECRET_ARN                = aws_secretsmanager_secret.db_login["api"].arn
+      DB_POOL_MAX                  = "1" # one request at a time per instance
+      RATE_LIMIT_PER_MINUTE        = "0" # API Gateway throttles instead
       AWS_LAMBDA_EXEC_WRAPPER      = "/opt/bootstrap"
       AWS_LWA_READINESS_CHECK_PATH = "/healthz"
       PORT                         = "8080"
@@ -131,7 +133,7 @@ resource "aws_cloudwatch_log_group" "fetch" {
 resource "aws_lambda_function" "fetch" {
   function_name    = "${local.name}-fetch"
   role             = aws_iam_role.fetch.arn
-  runtime          = "nodejs22.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   filename         = var.ingest_package_path
   source_code_hash = filebase64sha256(var.ingest_package_path)
@@ -187,7 +189,7 @@ resource "aws_cloudwatch_log_group" "load" {
 resource "aws_lambda_function" "load" {
   function_name    = "${local.name}-load"
   role             = aws_iam_role.load.arn
-  runtime          = "nodejs22.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   filename         = var.ingest_package_path
   source_code_hash = filebase64sha256(var.ingest_package_path)
