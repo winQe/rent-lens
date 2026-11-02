@@ -47,6 +47,7 @@ HDB's own rental statistics page also hides town medians when a town and flat ty
 - **Rent check verdict:** below the 25th percentile is "below most rents", above the 75th is "above most rents", and anything else is "in the usual range". The check compares with the street. If the street is low data, it compares with the whole town and says so. If the town is also low data, the page calls the verdict a rough guide.
 - **Trend:** 8 quarters, ending at the last complete quarter. With data up to October, the newest point is Q3, not a Q4 that holds one month. A quarter with fewer than 3 rentals on the street is a gap in the line.
 - **Map colours:** five fixed steps of the share (under 10%, 10 to 24%, 25 to 49%, 50 to 74%, 75% or more), from the same rounded percent the labels show. A colour means the same share in every view. When every town lands in the lowest or highest step, a note says so and suggests another budget. "Top towns" breaks ties by number of rentals.
+- **Compared with a year before:** the median rent in the latest 12 months against the 12 months before, per flat type, and the 5 towns whose median changed most (up or down) for the chosen flat type. A flat type or town is shown only with at least 10 rentals in both periods. Changes are always signed ("+3%"), so their direction never depends on colour.
 - **Budget slider:** S$1,000 to S$6,000 in S$100 steps. The API accepts S$300 to S$10,000. A budget in the URL is rounded to the step and kept inside the slider range, so the label, the slider and the request always agree.
 
 ## 3. Architecture
@@ -154,6 +155,7 @@ All routes are `GET` and return JSON. Inputs are checked with zod (400 with fiel
 | `/api/v1/streets?flatType&budget&town&includeLowData&page&pageSize` | ranked streets with quartiles, plus the number that fit, the number with low data, and the total |
 | `/api/v1/streets/detail?flatType&town&street` | quartiles, town median, blocks, histogram, 8-quarter trend against Singapore |
 | `/api/v1/rent-check?flatType&town&street&rent` | share lower, share equal, quartiles, verdict, and whether it compared with the street or the town |
+| `/api/v1/summary?flatType` | median rent per flat type in the latest 12 months against the 12 months before, and the 5 towns whose median changed most for the flat type |
 | `/healthz` | database ping |
 
 Routes are versioned under `/api/v1`, so a breaking change can ship as `/api/v2` while old clients keep working. `/healthz` is for infrastructure and is not versioned.
@@ -208,6 +210,8 @@ The streets query (4-room, S$3,000, 12-month window) on the full dataset, Postgr
 
 So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after each load, so the visibility map allows true index-only scans. The street trend query takes about 3 ms, and a rent check over HTTP about 3 ms.
 
+The year-on-year summary groups two years of every flat type to compute medians: about 35 ms, and about 9 ms for the per-town part. It is cached like every response.
+
 ## 7. Accessibility and security
 
 - Real form controls with labels. The flat type is a radio group styled as pills. The slider has `aria-valuetext`, and its value sits outside the label, so it is read once.
@@ -231,6 +235,7 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
   - `parse.test.ts`: CSV parsing, each reject reason, the month range in Singapore time, whole-dollar rents.
   - `ingest.test.ts`: the snapshot is used only for an empty database, a re-run replaces instead of appends, the staleness and shrink checks and `--force`, the reject limit, and a failed `VACUUM` after the commit.
   - `api.test.ts`: every endpoint against a fixture whose numbers were worked out by hand (`test/fixtures/rentals.csv`, 40 rows with known percentiles, window edges, a bad row and a `4 ROOM` spelling).
+  - `summary.test.ts`: the year-on-year summary against its own small fixture (`test/fixtures/summary.csv`), with every median worked out by hand.
   - `limits.test.ts`: rate limit, CORS, request IDs, a generic 500, and 503 when Postgres refuses connections.
   - `source.test.ts`: download retries. `stats.test.ts`: the histogram and the verdict.
   - `concurrency.test.ts`: two loads at once on a real Postgres keep one copy of the data. It runs only when `DATABASE_URL` is set, because PGlite has a single connection and cannot show the race.
