@@ -4,7 +4,7 @@ Where can I rent an HDB flat on my budget? RentLens takes a monthly budget and a
 
 The data is HDB's "Renting Out of Flats from Jan 2021" on data.gov.sg: about 212,000 rental approvals.
 
-![The budget page: a S$3,000 budget for a 4-room flat, 43 streets that fit, and a map of Singapore coloured by the share of rents within budget](docs/screenshot.png)
+<img src="docs/screenshot.png" alt="The budget page: a S$3,000 budget for a 4-room flat, 43 streets that fit, and a map of Singapore coloured by the share of rents within budget" width="560">
 
 ## Run it
 
@@ -20,17 +20,11 @@ The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Post
 
 ## Screenshots
 
-**A street:** the typical range, the rent check with the listing's rent marked on the histogram, and the quarterly trend against all of Singapore.
+| A street, with a rent check | One town selected | On a phone |
+|---|---|---|
+| <a href="docs/screenshot-street.png"><img src="docs/screenshot-street.png" alt="Yishun Ring Rd: the typical rent range, a S$3,400 listing marked above most rents on the histogram, and the quarterly trend against Singapore" width="260"></a> | <a href="docs/screenshot-town.png"><img src="docs/screenshot-town.png" alt="The budget page filtered to Yishun, with Yishun outlined on the map and 7 streets that fit" width="260"></a> | <a href="docs/screenshot-phone.png"><img src="docs/screenshot-phone.png" alt="The budget page on a phone, 390 px wide" width="130"></a> |
 
-![Yishun Ring Rd: most 4-room rents from S$2,963 to S$3,300, a S$3,400 listing marked above most rents, and the quarterly trend](docs/screenshot-street.png)
-
-**One town:** picking Yishun, in the list or on the map, outlines it and filters the streets.
-
-![The budget page filtered to Yishun, with Yishun outlined on the map and 7 streets that fit](docs/screenshot-town.png)
-
-**On a phone:** the same page at 390 px wide.
-
-<img src="docs/screenshot-phone.png" alt="The budget page on a phone, 390 px wide" width="300">
+Select an image to see it at full size.
 
 ## Develop
 
