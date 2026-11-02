@@ -166,6 +166,35 @@ run "lambdas_sit_where_the_design_says" {
   }
 }
 
+run "each_lambda_reads_only_its_own_database_login" {
+  command = apply
+
+  # The mock gives each secret its own random ARN, so the first assertion proves the two differ
+  # and the next two prove each Lambda points at the right one.
+  assert {
+    condition     = aws_secretsmanager_secret.db_login["api"].arn != aws_secretsmanager_secret.db_login["ingest"].arn
+    error_message = "The API and ingest logins must be separate secrets."
+  }
+
+  assert {
+    condition     = aws_lambda_function.api.environment[0].variables["DB_USER"] == "rentlens_api" && aws_lambda_function.api.environment[0].variables["DB_SECRET_ARN"] == aws_secretsmanager_secret.db_login["api"].arn
+    error_message = "The API Lambda must log in as the read-only rentlens_api role."
+  }
+
+  assert {
+    condition     = aws_lambda_function.load.environment[0].variables["DB_USER"] == "rentlens_ingest" && aws_lambda_function.load.environment[0].variables["DB_SECRET_ARN"] == aws_secretsmanager_secret.db_login["ingest"].arn
+    error_message = "The load Lambda must log in as the rentlens_ingest role."
+  }
+
+  assert {
+    condition = !contains([
+      aws_lambda_function.api.environment[0].variables["DB_SECRET_ARN"],
+      aws_lambda_function.load.environment[0].variables["DB_SECRET_ARN"],
+    ], aws_db_instance.main.master_user_secret[0].secret_arn)
+    error_message = "No Lambda may use the master password."
+  }
+}
+
 run "buckets_are_private" {
   command = plan
 
