@@ -76,11 +76,44 @@ jobs:
           test -x api/run.sh && test -s api/main.mjs && test -s api/rds-ca.pem && test -s ingest/rds-ca.pem
 
   docker:
-    name: Docker images
+    name: Docker stack
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose build
+      # The brief's one hard rule: the app runs locally. Start it exactly as the README says.
+      - name: Start the stack (migrate, roles, load, API, web)
+        run: docker compose -p rentlens-ci up -d --build
+      - name: Wait for the API through nginx
+        run: |
+          for i in $(seq 1 90); do
+            curl -fsS -o /dev/null http://localhost:8080/api/v1/meta && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Check the app and the API
+        run: |
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+          curl -fsS 'http://localhost:8080/api/v1/streets?flatType=4-ROOM&budget=3000&pageSize=1' | grep -q '"items"'
+          curl -fsS 'http://localhost:8080/api/v1/summary?flatType=4-ROOM' | grep -q '"flatTypes"'
+      # Fails on HIGH and CRITICAL vulnerabilities that have a fix.
+      - name: Scan the images
+        run: |
+          for image in rentlens-ci-api rentlens-ci-web; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1 \
+              image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image"
+          done
+      - if: failure()
+        run: docker compose -p rentlens-ci logs
+      - if: always()
+        run: docker compose -p rentlens-ci down -v
+
+  dependencies:
+    name: Dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Scans yarn.lock; fails on HIGH and CRITICAL vulnerabilities that have a fix.
+      - run: docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.76.1 fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 .
 
   terraform:
     name: Terraform
