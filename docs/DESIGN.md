@@ -164,7 +164,19 @@ Timeouts on the API's connection pool: 10 s `statement_timeout` on the server, 1
 
 ## 5. Technical decisions
 
-Stack: React 19, Vite, Tailwind v4 and TanStack Query for the web app; Node, Express 5, zod, pino and helmet for the API; Postgres 17; Yarn 4 workspaces, TypeScript 7 for type checks, Biome, and esbuild to bundle the API.
+Stack, with the short reason for each:
+
+- **React 19, Vite, TypeScript:** no login and no search-engine need, so a static build is enough and no server-rendering framework is needed.
+- **Tailwind v4:** styles sit next to the markup, and theme tokens keep colours and sizes consistent.
+- **TanStack Query:** caching, loading and error states, and cancelling stale requests while the slider moves, without hand-written `useEffect` code.
+- **Node and Express 5:** one language end to end, and the most widely known Node HTTP framework.
+- **zod in a shared package:** the API and the web app check requests with the same schemas and types.
+- **pino and helmet:** JSON logs with request IDs, ready for CloudWatch; standard security headers in one line.
+- **Postgres 17:** the queries are percentiles and grouped counts, which SQL does well; RDS runs it on AWS.
+- **Yarn 4 workspaces:** one repo for the shared package, API and web app, with a pinned Yarn version and a 24-hour package age gate.
+- **TypeScript 7:** the Go compiler type-checks each workspace in about 0.1 s.
+- **Biome:** one tool for lint, format, import order and Tailwind class order.
+- **esbuild for the API:** one file per entry point, which is also what a Lambda ships.
 
 The choices below are the ones a reader might question.
 
