@@ -134,7 +134,13 @@ infra/            Terraform for the AWS deployment
 - **Secrets:** RDS creates the database password and keeps it in Secrets Manager, so it never appears in Terraform state. The Lambdas in the VPC read it through an interface endpoint.
 - **Monitoring:** CloudWatch alarms on API 5xx responses, on a failed fetch or load (a failed monthly ingest otherwise goes unnoticed, because last month's data stays in place), and on database storage and CPU, sent to an SNS topic.
 
-The Terraform is in `infra/` and passes `terraform validate`; CI checks it on every pull request. It has not been applied to an AWS account.
+The Terraform is in `infra/`. It has not been applied to an AWS account, so CI checks it in three ways on every pull request:
+
+- `terraform validate`: the configuration is complete and well formed.
+- `terraform test` with a mocked AWS provider (`infra/tests/main.tftest.hcl`): Terraform builds the plan and applies it to fake resources, then checks the properties that matter. The database is private, encrypted, keeps its password in Secrets Manager and has backups; Postgres accepts only the Lambdas' security group; `jit` is off; the private subnets have no route out; the API and load Lambdas are in the VPC and the fetch Lambda is not; concurrency is capped; both buckets block public access; CloudFront redirects to HTTPS and sends the Content Security Policy; API Gateway throttles; both ingest steps have alarms. Breaking any of these on purpose fails the test.
+- A Trivy configuration scan, failing on HIGH and CRITICAL findings. The accepted findings and their reasons are in `infra/.trivyignore`: the buckets and the alarm topic use AWS-managed encryption keys instead of customer-managed KMS keys, and there is no WAF.
+
+These prove the configuration says what the design says. They do not prove it deploys: only a `terraform apply` to an account does that.
 
 ## 4. API
 
@@ -238,4 +244,5 @@ The Terraform describes the target. These application changes are still needed b
 - **Database settings:** the API reads `DATABASE_URL`. On AWS the Lambdas get `DB_HOST`, `DB_NAME` and `DB_SECRET_ARN` instead, so `config.ts` needs to read the password from Secrets Manager at start-up.
 - **Ingest entry points:** two small Lambda handlers. "fetch" calls the existing `downloadDataset` and writes the file to S3; "load" reads it from S3 and calls the existing `ingest` with that file.
 - **Packaging:** CI should build `api.zip` (the esbuild bundle, production `node_modules` and a `run.sh` that starts `node dist/main.js`) and `ingest.zip`, which the Terraform takes as `api_package_path` and `ingest_package_path`.
+- **Production hardening** (Trivy MEDIUM and LOW findings): CloudFront and S3 access logs, VPC flow logs, X-Ray tracing on the Lambdas, RDS IAM authentication, and a WAF in front of CloudFront.
 - **Database roles:** everything logs in as the one `rentlens` user. The API should use a role that can only read, and only the load step should be able to write. Roles live inside Postgres, so they belong in a migration, with their passwords in Secrets Manager.

@@ -30,7 +30,7 @@ Run from the repo root. Use `corepack yarn`, never npm.
 | Lint and format check | `corepack yarn lint` |
 | Format and fix | `corepack yarn format` |
 | Build | `corepack yarn build` |
-| Terraform check | `terraform -chdir=infra fmt -check -recursive`, then `terraform -chdir=infra init -backend=false` and `terraform -chdir=infra validate` |
+| Terraform check | `terraform -chdir=infra fmt -check -recursive`, then `terraform -chdir=infra init -backend=false`, `terraform -chdir=infra validate` and `terraform -chdir=infra test` (mocked AWS provider, no account needed) |
 
 Development without Docker for the app:
 
