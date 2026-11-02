@@ -1,0 +1,13 @@
+# Findings from `trivy config infra` that are accepted, with the reason.
+
+# S3 buckets use S3-managed keys (SSE-S3), not a customer-managed KMS key. They are encrypted;
+# a KMS key adds cost and key management for data that is public: the open dataset and the app build.
+AWS-0132
+
+# No WAF in front of CloudFront. The API serves public, read-only data, and API Gateway throttles it.
+# A WAF (AWS managed rule groups, rate-based rules) is a step for a production launch.
+AWS-0011
+
+# The alarm topic is encrypted with the AWS-managed SNS key, not a customer-managed one.
+# Alarm messages hold no sensitive data.
+AWS-0136

@@ -80,3 +80,7 @@ jobs:
       - run: terraform -chdir=infra fmt -check -recursive
       - run: terraform -chdir=infra init -backend=false -input=false
       - run: terraform -chdir=infra validate
+      # Plans and "applies" against a mocked AWS provider, then checks design and security properties.
+      - run: terraform -chdir=infra test
+      # Configuration scan; accepted findings and their reasons are in infra/.trivyignore.
+      - run: docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.76.1 config --severity HIGH,CRITICAL --ignorefile infra/.trivyignore --exit-code 1 infra
