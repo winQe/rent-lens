@@ -1,19 +1,22 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import axe from 'axe-core';
-import type { ReactNode } from 'react';
+import { type ReactNode, StrictMode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
+/** Renders inside StrictMode, as main.tsx does, so the tests catch effects that break when React runs them twice. */
 export function renderAt(path: string, routePath: string, element: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path={routePath} element={<main>{element}</main>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <StrictMode>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path={routePath} element={<main>{element}</main>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </StrictMode>,
   );
 }
 
