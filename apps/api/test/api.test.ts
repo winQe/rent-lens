@@ -141,6 +141,46 @@ describe('GET /api/rent-check', () => {
   });
 });
 
+describe('known limitations, fixed', () => {
+  it('reads each request inside one repeatable-read, read-only transaction', async () => {
+    const statements: string[] = [];
+    let transactions = 0;
+    const spy: Db = {
+      ...db,
+      transaction: (fn) => {
+        transactions++;
+        return db.transaction((tx) =>
+          fn({
+            query: (text, params) => {
+              statements.push(text);
+              return tx.query(text, params);
+            },
+            exec: tx.exec,
+          }),
+        );
+      },
+    };
+    const spyApp = createApp({ db: spy, logger: silentLogger, corsOrigins: [] });
+    await request(spyApp).get('/api/v1/streets?flatType=4-ROOM&budget=3000').expect(200);
+    expect(transactions).toBe(1);
+    // The window and the statistics then come from the same snapshot, even if a load commits in between.
+    expect(statements[0]).toBe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+    expect(statements.length).toBeGreaterThan(2);
+  });
+
+  it('returns 404 from the rent check for a street with no rentals, as the street page does', async () => {
+    const res = await request(app).get('/api/v1/rent-check?flatType=4-ROOM&town=YISHUN&street=NOWHERE%20RD&rent=3000').expect(404);
+    expect(res.body.error).toMatch(/No rentals for this street/);
+  });
+
+  it('says plainly when a parameter is given more than once', async () => {
+    for (const query of ['budget=1000&budget=2000', 'budget[]=3000']) {
+      const res = await request(app).get(`/api/v1/streets?flatType=4-ROOM&${query}`).expect(400);
+      expect(res.body.details.budget, query).toEqual(['Give this parameter once']);
+    }
+  });
+});
+
 describe('HTTP behaviour', () => {
   it('sets cache, security and request-id headers', async () => {
     const res = await request(app).get('/api/v1/towns?flatType=4-ROOM&budget=3000').set('x-request-id', 'abc-123').expect(200);

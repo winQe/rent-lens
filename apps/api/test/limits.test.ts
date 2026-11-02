@@ -21,6 +21,13 @@ describe('rate limit', () => {
   });
 });
 
+describe('rate limit off', () => {
+  it('never returns 429 when the limit is 0, as on AWS where API Gateway throttles', async () => {
+    const app = createApp({ db, logger: silentLogger, corsOrigins: [], rateLimitPerMinute: 0 });
+    for (let i = 0; i < 5; i++) await request(app).get('/api/v1/meta').expect(200);
+  });
+});
+
 describe('CORS', () => {
   const app = () => createApp({ db, logger: silentLogger, corsOrigins: ['http://localhost:5173'] });
 

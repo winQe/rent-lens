@@ -85,6 +85,25 @@ export interface StreetDetailResponse {
   trend: QuarterPoint[];
 }
 
+/** A median rent in the latest 12 months against the 12 months before. */
+export interface YearOnYear {
+  rentals: number;
+  median: number;
+  previousMedian: number;
+  /** median / previousMedian - 1, for example 0.08 for 8% higher. */
+  change: number;
+}
+
+export interface SummaryResponse {
+  flatType: FlatType;
+  window: DataWindow;
+  previousWindow: DataWindow;
+  /** Every flat type with at least MIN_RENTALS rentals in both periods. */
+  flatTypes: Array<YearOnYear & { flatType: FlatType }>;
+  /** Towns for the requested flat type whose median changed most, rising or falling (at most 5). */
+  towns: Array<YearOnYear & { town: string }>;
+}
+
 export type RentVerdict = 'below' | 'usual' | 'above';
 
 export interface RentCheckResponse {

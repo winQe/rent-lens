@@ -1,4 +1,13 @@
-import type { ApiError, FlatType, MetaResponse, RentCheckResponse, StreetDetailResponse, StreetsResponse, TownsResponse } from '@rent-lens/shared';
+import type {
+  ApiError,
+  FlatType,
+  MetaResponse,
+  RentCheckResponse,
+  StreetDetailResponse,
+  StreetsResponse,
+  SummaryResponse,
+  TownsResponse,
+} from '@rent-lens/shared';
 
 export class RequestError extends Error {
   constructor(
@@ -40,4 +49,5 @@ export const api = {
     get<StreetDetailResponse>('/streets/detail', { flatType, town, street }, signal),
   rentCheck: (flatType: FlatType, town: string, street: string, rent: number, signal?: AbortSignal) =>
     get<RentCheckResponse>('/rent-check', { flatType, town, street, rent }, signal),
+  summary: (flatType: FlatType, signal?: AbortSignal) => get<SummaryResponse>('/summary', { flatType }, signal),
 };

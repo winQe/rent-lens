@@ -15,6 +15,7 @@
     "test": "yarn workspaces foreach -A run test",
     "migrate": "yarn workspace @rent-lens/api migrate",
     "ingest": "yarn workspace @rent-lens/api ingest",
+    "roles": "yarn workspace @rent-lens/api roles",
     "lint": "biome check .",
     "format": "biome check --write ."
   },

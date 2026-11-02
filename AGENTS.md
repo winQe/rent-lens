@@ -12,6 +12,8 @@ apps/api          Express 5 API, SQL handlers, migrations, ingest job (download,
 apps/web          React 19 + Vite + Tailwind v4 app, SVG map and charts
 data/             gzipped dataset snapshot, used only when the database is empty and data.gov.sg cannot be reached
 docs/DESIGN.md    design document
+infra/            Terraform for the AWS deployment (not applied to an account)
+scripts/          explain.sql: re-runs the query measurements in docs/DESIGN.md
 ```
 
 In `apps/api/src`: `handlers/` (one file per endpoint, all SQL), `http/app.ts` (routes, middleware, errors), `ingest/` (source, parse, load), `db/` (the `Db` interface, the `pg` pool, the migration runner), `cli/` (migrate and ingest entry points).
@@ -29,6 +31,8 @@ Run from the repo root. Use `corepack yarn`, never npm.
 | Lint and format check | `corepack yarn lint` |
 | Format and fix | `corepack yarn format` |
 | Build | `corepack yarn build` |
+| Lambda packages | `corepack yarn workspace @rent-lens/api build:lambda` (writes `build/api.zip` and `build/ingest.zip`) |
+| Terraform check | `terraform -chdir=infra fmt -check -recursive`, then `terraform -chdir=infra init -backend=false`, `terraform -chdir=infra validate` and `terraform -chdir=infra test` (mocked AWS provider, no account needed) |
 
 Development without Docker for the app:
 
@@ -41,7 +45,9 @@ corepack yarn dev:api           # port 3000
 corepack yarn dev:web           # port 5173, proxies /api to API_URL (default http://localhost:3000)
 ```
 
-API environment: `DATABASE_URL` (required), `PORT` (3000), `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`), `LOG_LEVEL` (`info`), `MIGRATIONS_DIR`, `SNAPSHOT_PATH`.
+API environment: `DATABASE_URL`, `PORT` (3000), `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`), `DB_POOL_MAX` (5), `RATE_LIMIT_PER_MINUTE` (120; 0 turns it off), `LOG_LEVEL` (`info`), `MIGRATIONS_DIR`, `SNAPSHOT_PATH`. Without `DATABASE_URL` (on AWS), the connection comes from `DB_HOST`, `DB_NAME`, `DB_USER`, the password in the `DB_SECRET_ARN` secret, and TLS with the CA in `DB_CA_PATH` (`apps/api/src/db/connection.ts`).
+
+docker compose reads `WEB_PORT`, `API_PORT`, `DB_PORT` and the three database passwords from an optional `.env` (see `.env.example`).
 
 Before you finish a change, run `corepack yarn lint`, `corepack yarn typecheck` and `corepack yarn test`. All three must pass.
 
@@ -71,6 +77,7 @@ Check a query change with `EXPLAIN (ANALYZE)` on the full dataset, not only the 
 
 - **Migrations** are `.sql` files in `apps/api/migrations/`, applied in name order and recorded by file name. Never edit an applied migration's behaviour; add a new numbered file.
 - **The ingest** replaces the whole table in one transaction, under `LOCK TABLE rental_approval IN EXCLUSIVE MODE`, then runs `VACUUM ANALYZE`. Keep the lock: without it, two overlapping loads store every row twice.
+- **Roles:** the API logs in as `rentlens_api` (`SELECT` only) and the ingest as `rentlens_ingest` (data, not schema). Migrations run as the owner. A new table needs `GRANT`s in its migration, or the API and ingest cannot use it. `corepack yarn roles` sets the login passwords from `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`; docker compose does this in its setup job.
 - **The API connects with `jit=off`.** With JIT on, Postgres spends about 100 ms compiling the percentile queries, which then run in about 7 ms.
 
 ### Web

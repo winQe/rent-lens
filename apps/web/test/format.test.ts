@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inTen, inTenLabel, money, monthLabel, percent, shareStep, topTowns } from '../src/format.ts';
+import { inTen, inTenLabel, money, monthLabel, percent, shareStep, signedPercent, topTowns } from '../src/format.ts';
 
 describe('format', () => {
   it('formats money, shares and months', () => {
@@ -16,6 +16,10 @@ describe('format', () => {
     expect(inTenLabel(3 / 67)).toBe('Under 1 in 10');
     expect(inTenLabel(0)).toBe('0 in 10');
     expect(inTenLabel(0.464)).toBe('4 in 10');
+  });
+
+  it('signs every change, so its direction never depends on colour', () => {
+    expect([0.08, -0.05, 0.004, -0.004, 0].map(signedPercent)).toEqual(['+8%', '-5%', '0%', '0%', '0%']);
   });
 
   it('picks the five best towns with enough rentals, best first', () => {

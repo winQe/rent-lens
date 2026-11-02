@@ -12,19 +12,20 @@ interface Comparison {
 }
 
 /**
- * Compares a rent with approved rents on the same street. If the street has fewer
- * than MIN_RENTALS rentals, falls back to the whole town and says so. There is no
- * block level: most blocks have only 1 or 2 rentals a year.
+ * Compares a rent with approved rents on the same street. A street with no rentals of the
+ * flat type is a 404; one with fewer than MIN_RENTALS falls back to the whole town and says
+ * so. There is no block level: most blocks have only 1 or 2 rentals a year.
  */
 export async function checkRent(db: Queryable, q: RentCheckQuery): Promise<RentCheckResponse> {
   await getWindow(db);
   let comparedWith: RentCheckResponse['comparedWith'] = 'street';
   let c = await compare(db, q, q.street);
+  // Same rule as the street page: no rentals of this flat type on the street is a 404, not a town answer.
+  if (c.rentals === 0) throw new HttpError(404, `No rentals for this street and flat type in the last ${WINDOW_MONTHS} months`);
   if (c.rentals < MIN_RENTALS) {
     comparedWith = 'town';
     c = await compare(db, q, null);
   }
-  if (c.rentals === 0) throw new HttpError(404, `No rentals for this town and flat type in the last ${WINDOW_MONTHS} months`);
 
   const p25 = dollars(c.p25);
   const p75 = dollars(c.p75);

@@ -14,7 +14,12 @@ COPY apps/web apps/web
 RUN yarn workspace @rent-lens/web build
 
 # Static files only; nginx also proxies /api so the browser sees one origin (no CORS needed).
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.30-alpine
+# Take Alpine security fixes released after the base image was built (the Trivy image scan in CI
+# fails on HIGH and CRITICAL findings that have a fix), then drop back to the unprivileged user.
+USER root
+RUN apk upgrade --no-cache
+USER nginx
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080

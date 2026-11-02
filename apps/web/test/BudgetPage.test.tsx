@@ -1,5 +1,5 @@
-import type { StreetsResponse, TownsResponse } from '@rent-lens/shared';
-import { fireEvent, screen } from '@testing-library/react';
+import type { StreetsResponse, SummaryResponse, TownsResponse } from '@rent-lens/shared';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../src/api.ts';
@@ -33,10 +33,25 @@ const streets: StreetsResponse = {
   ],
 };
 
+const summary: SummaryResponse = {
+  flatType: '4-ROOM',
+  window,
+  previousWindow: { fromMonth: '2024-10', toMonth: '2025-09' },
+  flatTypes: [
+    { flatType: '4-ROOM', rentals: 13475, median: 3300, previousMedian: 3150, change: 0.0476 },
+    { flatType: '5-ROOM', rentals: 6200, median: 3600, previousMedian: 3650, change: -0.0137 },
+  ],
+  towns: [
+    { town: 'TENGAH', rentals: 40, median: 3400, previousMedian: 2900, change: 0.1724 },
+    { town: 'BEDOK', rentals: 900, median: 3200, previousMedian: 3300, change: -0.0303 },
+  ],
+};
+
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(api, 'towns').mockResolvedValue(towns);
   vi.spyOn(api, 'streets').mockResolvedValue(streets);
+  vi.spyOn(api, 'summary').mockResolvedValue(summary);
 });
 
 describe('BudgetPage', () => {
@@ -158,6 +173,24 @@ describe('BudgetPage', () => {
     vi.mocked(api.streets).mockRejectedValue(new Error('Too many requests, please try again in a minute.'));
     renderAt('/', '/', <BudgetPage />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load results: Too many requests, please try again in a minute.');
+  });
+
+  it('compares rents with a year before, per flat type and for the towns that changed most', async () => {
+    renderAt('/?flatType=4-ROOM', '/', <BudgetPage />);
+    const table = await screen.findByRole('table', { name: 'By flat type' });
+    expect(table).toHaveTextContent('4-roomS$3,300S$3,150+5%');
+    expect(table).toHaveTextContent('5-roomS$3,600S$3,650-1%');
+    expect(screen.getByRole('heading', { name: 'Biggest changes for 4-room' })).toBeInTheDocument();
+    const card = screen.getByRole('region', { name: 'Rents compared with a year before' });
+    expect(within(card).getByText('Tengah').closest('li')).toHaveTextContent('S$2,900 to S$3,400 +17%');
+    expect(api.summary).toHaveBeenCalledWith('4-ROOM', expect.any(AbortSignal));
+  });
+
+  it('says so when the comparison cannot be loaded, and still shows the results', async () => {
+    vi.mocked(api.summary).mockRejectedValue(new Error('Server error'));
+    renderAt('/', '/', <BudgetPage />);
+    expect(await screen.findByText('Could not load the comparison with a year before: Server error')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '43 streets fit your budget' })).toBeInTheDocument();
   });
 
   it('has no axe accessibility violations', async () => {
