@@ -87,8 +87,19 @@ export function createApp({ db, logger, corsOrigins, rateLimitPerMinute = 120 }:
 }
 
 /** Validates req.query with a zod schema, then runs a handler. Express 5 forwards async errors to errorHandler. */
-function get<S extends z.ZodType>(db: Queryable, schema: S, handler: (db: Queryable, query: z.infer<S>) => Promise<unknown>): RequestHandler {
+function get<S extends z.ZodType>(db: Db, schema: S, handler: (db: Queryable, query: z.infer<S>) => Promise<unknown>): RequestHandler {
   return async (req, res) => {
+    // A repeated parameter (budget=1&budget=2) or the bracket form (budget[]=1) arrives as an array or
+    // a "budget[]" key. Say so, instead of zod's "expected number, received NaN".
+    const repeated = Object.entries(req.query)
+      .filter(([key, value]) => Array.isArray(value) || key.endsWith('[]'))
+      .map(([key]) => key.replace(/\[\]$/, ''));
+    if (repeated.length > 0) {
+      res
+        .status(400)
+        .json({ error: 'Invalid query parameters', details: Object.fromEntries(repeated.map((key) => [key, ['Give this parameter once']])) });
+      return;
+    }
     const parsed = schema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid query parameters', details: z.flattenError(parsed.error).fieldErrors });
