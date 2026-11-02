@@ -1,8 +1,8 @@
 # RentLens
 
-Where can I rent an HDB flat on my budget? RentLens takes a monthly budget and a flat type, and shows which Singapore streets have most of their recent rents within it, on a ranked list and a map. For a single street it shows the typical range, a quarterly trend against all of Singapore, and whether a listing's rent is usual.
+Where can I rent an HDB flat on my budget? RentLens takes a monthly budget and a flat type, and shows which Singapore streets have most of their recent rents within it, on a ranked list and a map. For a single street it shows the typical range, a quarterly trend against all of Singapore, and whether a listing's rent is usual. It also compares median rents with a year before, per flat type and for the towns that changed most.
 
-The data is HDB's "Renting Out of Flats from Jan 2021" on data.gov.sg: about 212,000 rental approvals.
+The data is HDB's "Renting Out of Flats from Jan 2021" on data.gov.sg: over 210,000 rental approvals, growing each month. Figures in this README and the screenshots come from the bundled snapshot (approvals up to Sep 2026); a live load shows newer numbers.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="The budget page: a S$3,000 budget for a 4-room flat, 43 streets that fit, and a map of Singapore coloured by the share of rents within budget" width="560">
@@ -18,7 +18,7 @@ docker compose up --build
 
 Then open http://localhost:8080. The first start downloads the dataset from data.gov.sg and loads it into Postgres before the API starts. If data.gov.sg cannot be reached, it loads the snapshot bundled in `data/` instead, so the app also starts offline.
 
-The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Postgres on 5432. The database passwords in `docker-compose.yml` are defaults for this local stack only; to use your own, copy `.env.example` to `.env`.
+The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Postgres on 5432. If one of those ports is in use, copy `.env.example` to `.env` and set `WEB_PORT`, `API_PORT` or `DB_PORT`. The database passwords in `docker-compose.yml` are defaults for this local stack only; `.env.example` also says how to set your own.
 
 ## Screenshots
 
@@ -30,13 +30,15 @@ Select an image to see it at full size.
 
 ## Develop
 
-Node 22 or later, with Yarn 4 through corepack:
+Node 22 or later, with Yarn 4 through corepack. The Terraform check also needs Terraform 1.10 or later (CI uses 1.14.9).
+
+If the Docker stack is running, stop its API and web containers first, because the dev servers use the same ports: `docker compose stop api web`.
 
 ```sh
 corepack yarn install
 
 docker compose up -d db
-export DATABASE_URL=postgres://rentlens:rentlens@localhost:5432/rentlens
+export DATABASE_URL=postgres://rentlens:rentlens@localhost:5432/rentlens   # the owner; use your DB_OWNER_PASSWORD if you set one
 corepack yarn migrate
 corepack yarn ingest
 corepack yarn dev:api     # http://localhost:3000
@@ -50,7 +52,7 @@ corepack yarn dev:web     # http://localhost:5173, proxies /api to the API
 | Lint and format check | `corepack yarn lint` |
 | Format and fix | `corepack yarn format` |
 | Build | `corepack yarn build` |
-| Terraform check | `terraform -chdir=infra init -backend=false && terraform -chdir=infra validate` |
+| Terraform check | `terraform -chdir=infra init -backend=false && terraform -chdir=infra validate && terraform -chdir=infra test` |
 
 With `DATABASE_URL` set, the tests also run one test against the real Postgres, which checks that two overlapping loads keep a single copy of the data. Without it, that test is skipped. CI runs it against a Postgres service.
 
@@ -65,7 +67,7 @@ data/             gzipped dataset snapshot
 docs/DESIGN.md    design document
 ```
 
-The browser talks to nginx, which serves the React build and forwards `/api` to the Express API. The API runs SQL against Postgres. A one-time setup job runs the migrations and, if the database is empty, the ingest. The API is versioned under `/api/v1` and only serves GET requests.
+The browser talks to nginx, which serves the React build and forwards `/api` to the Express API. The API runs SQL against Postgres. A one-time setup job runs the migrations, sets the passwords of the read-only API role and the ingest role, and loads the data if the database is empty. The API is versioned under `/api/v1` and only serves GET requests.
 
 [`docs/DESIGN.md`](docs/DESIGN.md) has the diagrams, the API reference, every technical decision with its reason, the measured query performance, and the tests.
 
@@ -73,7 +75,7 @@ The browser talks to nginx, which serves the React build and forwards `/api` to 
 
 These come from looking at the real data, not from guesses:
 
-- **Streets are ranked by the share of rents at or below the budget, not by median rent.** Owners declare round numbers: on Yishun Ring Rd, 29 of 138 4-room rents are exactly S$3,000, so medians tie everywhere. A street "fits" when at least half of its rents are within the budget.
+- **Streets are ranked by the share of rents at or below the budget, not by median rent.** Owners declare round numbers: in the snapshot, 29 of 138 4-room rents on Yishun Ring Rd are exactly S$3,000, so medians tie everywhere. A street "fits" when at least half of its rents are within the budget.
 - **The street is the smallest unit.** A block has a median of 2 rentals a year, too few to compare, so there are no figures per block.
 - **Streets with fewer than 10 rentals are "low data".** They are hidden by default, and tagged and sorted last when shown. The rent check compares with the whole town when a street has too few rentals, and says so.
 - **Every figure covers the latest 12 months in the data,** not the 12 months before today, because HDB publishes with a delay. The trend is quarterly, because one street has too few rentals a month for a stable figure.
@@ -83,7 +85,7 @@ These come from looking at the real data, not from guesses:
 [`infra/`](infra) holds Terraform for the AWS deployment. It has not been applied to an account. Instead, CI runs `terraform validate`, `terraform test` against a mocked AWS provider (checking, for example, that the database is private and encrypted and that only the Lambdas can reach it), and a Trivy security scan. The design:
 
 - CloudFront serves the React build from a private S3 bucket and forwards `/api/*` to API Gateway, then to a Lambda running the Express app.
-- RDS Postgres sits in private subnets, reachable only from the Lambdas. RDS keeps the password in Secrets Manager.
+- RDS Postgres sits in private subnets, reachable only from the Lambdas, which connect over TLS. The API logs in as a read-only role and the load as a write role, each with its own Secrets Manager secret.
 - Each month, EventBridge Scheduler starts a Lambda that downloads the dataset to S3, and the new file starts a second Lambda inside the VPC that loads it. Splitting the ingest this way avoids a NAT gateway.
 - CloudWatch alarms cover API errors, failed ingests and database storage and CPU.
 
@@ -106,7 +108,7 @@ These come from looking at the real data, not from guesses:
 
 ## With more time
 
-- The AWS application changes listed above, then a deploy from CI.
+- A first deploy to AWS, then deploys from CI (GitHub signing in to AWS through OIDC, not stored keys), and the production hardening listed in `docs/DESIGN.md`.
 - One end-to-end test in a real browser (Playwright), including the phone layout.
 - Rent against buy, with the HDB resale dataset.
 

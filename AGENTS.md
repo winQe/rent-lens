@@ -13,6 +13,7 @@ apps/web          React 19 + Vite + Tailwind v4 app, SVG map and charts
 data/             gzipped dataset snapshot, used only when the database is empty and data.gov.sg cannot be reached
 docs/DESIGN.md    design document
 infra/            Terraform for the AWS deployment (not applied to an account)
+scripts/          explain.sql: re-runs the query measurements in docs/DESIGN.md
 ```
 
 In `apps/api/src`: `handlers/` (one file per endpoint, all SQL), `http/app.ts` (routes, middleware, errors), `ingest/` (source, parse, load), `db/` (the `Db` interface, the `pg` pool, the migration runner), `cli/` (migrate and ingest entry points).
@@ -44,7 +45,9 @@ corepack yarn dev:api           # port 3000
 corepack yarn dev:web           # port 5173, proxies /api to API_URL (default http://localhost:3000)
 ```
 
-API environment: `DATABASE_URL` (required), `PORT` (3000), `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`), `LOG_LEVEL` (`info`), `MIGRATIONS_DIR`, `SNAPSHOT_PATH`.
+API environment: `DATABASE_URL`, `PORT` (3000), `CORS_ORIGINS` (comma-separated, default `http://localhost:5173`), `DB_POOL_MAX` (5), `RATE_LIMIT_PER_MINUTE` (120; 0 turns it off), `LOG_LEVEL` (`info`), `MIGRATIONS_DIR`, `SNAPSHOT_PATH`. Without `DATABASE_URL` (on AWS), the connection comes from `DB_HOST`, `DB_NAME`, `DB_USER`, the password in the `DB_SECRET_ARN` secret, and TLS with the CA in `DB_CA_PATH` (`apps/api/src/db/connection.ts`).
+
+docker compose reads `WEB_PORT`, `API_PORT`, `DB_PORT` and the three database passwords from an optional `.env` (see `.env.example`).
 
 Before you finish a change, run `corepack yarn lint`, `corepack yarn typecheck` and `corepack yarn test`. All three must pass.
 

@@ -114,23 +114,14 @@ flowchart LR
 
 The handlers are plain functions over a small `Db` interface (`query`, `exec`, `transaction`). Express calls them locally, the tests call them through Express with PGlite, and on AWS the same Express app runs in Lambda through the AWS Lambda Web Adapter.
 
-### Repo layout
-
-```
-packages/shared   types, zod query schemas, constants, flat type and town helpers
-apps/api          Express API, migrations, ingest job, tests
-apps/web          React app, map data, tests
-data/             gzipped dataset snapshot, used when data.gov.sg cannot be reached
-docs/             this file
-infra/            Terraform for the AWS deployment
-```
-
 ### AWS choices
 
-- **Lambda and API Gateway, not ECS Fargate and a load balancer.** Lambda and API Gateway charge per request and per unit of run time, so a low-traffic app costs little when idle. A Fargate task and an Application Load Balancer both charge for every hour they run, whether or not requests arrive. The cost of Lambda is cold starts: the first request to a new instance waits while it starts. CloudFront caches most GET responses, so few requests reach a cold instance.
-- **Database connections:** reserved concurrency of about 10 on the API Lambda and a pool of 1 to 2 per instance, so Postgres sees at most about 20 connections. No RDS Proxy at this traffic.
-- **Postgres settings:** `jit=off` and `statement_timeout` go in the RDS parameter group.
-- **Rate limiting:** API Gateway throttling. The in-memory limiter in the API counts per instance, so it only protects the local setup.
+- **Lambda and API Gateway, not ECS Fargate and a load balancer.** Lambda and API Gateway charge per request and per unit of run time, so a low-traffic app costs little when idle. A Fargate task and an Application Load Balancer both charge for every hour they run, whether or not requests arrive. The cost of Lambda is cold starts: the first request to a new instance waits while it starts. CloudFront serves repeat queries from its cache, so those never reach a Lambda.
+- **Fixed costs:** RDS and the Secrets Manager interface endpoint charge for every hour they run, so the database, not Lambda, sets the floor of the monthly bill. The instance class is already the smallest; Aurora Serverless is the option to compare if that cost matters.
+- **Database connections:** a Lambda instance serves one request at a time, so each keeps one connection (`DB_POOL_MAX=1`), and reserved concurrency of about 10 caps the API at about 10 connections. No RDS Proxy at this traffic.
+- **Postgres settings:** `jit=off` goes in the RDS parameter group. `statement_timeout` does not: it would also stop the ingest's long statements, so the API sets its own 10 s limit on each connection.
+- **Rate limiting:** API Gateway throttling. The in-memory limiter counts per instance, so the API Lambda turns it off (`RATE_LIMIT_PER_MINUTE=0`); it protects only the local setup.
+- **The API Gateway URL is public**, so a client could call it directly and skip CloudFront's cache and headers. It is throttled and serves public data, so this is accepted; a secret header that only CloudFront sends would close it.
 - **Monthly ingest in two steps:** EventBridge Scheduler starts a "fetch" Lambda outside the VPC, which downloads from data.gov.sg into S3. The new file starts a "load" Lambda inside the VPC, which reads it through a gateway endpoint and loads Postgres. This avoids a NAT gateway, which charges for every hour it runs and for every GB it processes. The load Lambda has a concurrency of 1, and the table lock still guards against overlapping loads.
 - **Secrets:** RDS creates the master password and keeps it in Secrets Manager. Terraform also creates one empty secret per login role and gives each Lambda read access to its own only: the API reads the `rentlens_api` secret and the load Lambda the `rentlens_ingest` one. No Lambda can read the master password, and no password enters Terraform state. The Lambdas read their secret through an interface endpoint.
 - **First deploy:** a one-time provisioning step, run with the master password, applies the migrations, generates a password for each login role, stores it in that role's secret, and runs the `roles` command with it.
@@ -178,7 +169,7 @@ Stack, with the short reason for each:
 - **pino and helmet:** JSON logs with request IDs, ready for CloudWatch; standard security headers in one line.
 - **Postgres 17:** the queries are percentiles and grouped counts, which SQL does well; RDS runs it on AWS.
 - **Yarn 4 workspaces:** one repo for the shared package, API and web app, with a pinned Yarn version and a 24-hour package age gate.
-- **TypeScript 7:** the Go compiler type-checks each workspace in about 0.1 s.
+- **TypeScript 7:** the Go compiler type-checks each workspace in about 0.1 s. Only `tsc --noEmit` uses it (Vite, Vitest and esbuild strip types themselves), so a compiler bug could break a check, never the build or the running code.
 - **Biome:** one tool for lint, format, import order and Tailwind class order.
 - **esbuild for the API:** one file per entry point, which is also what a Lambda ships.
 
@@ -200,7 +191,7 @@ The choices below are the ones a reader might question.
 
 ## 6. Query performance
 
-The streets query (4-room, S$3,000, 12-month window) on the full dataset, Postgres 17, `EXPLAIN (ANALYZE)`:
+The streets query (4-room, S$3,000, 12-month window) on the full dataset, Postgres 17, `EXPLAIN (ANALYZE)`. To re-run the measurements on the local stack: `docker compose exec -T db psql -U rentlens -d rentlens -f - < scripts/explain.sql`.
 
 | Setup | Time | Plan |
 |---|---|---|
@@ -224,11 +215,11 @@ The year-on-year summary groups two years of every flat type to compute medians:
 - API: helmet headers, a GET-only CORS allow-list, a rate limit, zod checks, parameterised SQL only, no stack traces in responses, an incoming `x-request-id` accepted only as `[A-Za-z0-9-]{1,64}`, and control characters rejected in names.
 - nginx (the local stand-in for CloudFront): a Content Security Policy, `X-Frame-Options: DENY`, `nosniff`, a one-year cache for hashed assets, `no-cache` on the app shell, and the API found through Docker DNS on each request.
 - docker compose: Postgres and the API listen on 127.0.0.1 only, because the API trusts one proxy hop for `X-Forwarded-For`, which only nginx should send. Services restart on failure, and the web container starts after the API's health check passes.
-- No login: the data is public and read-only, and the app stores nothing about users.
+- No login: the data is public and read-only, and the app stores nothing about users. If it stored user data (saved searches, for example): sign-in through Singpass or Cognito, checked at API Gateway; an audit table that the API writes for every change; customer-managed KMS keys for the database and buckets (today an accepted finding in `infra/.trivyignore`); and CloudTrail data events on the buckets.
 
 ## 8. Tests
 
-`corepack yarn test` runs Vitest in every workspace.
+`corepack yarn test` runs Vitest in every workspace. CI runs it against a Postgres service, beside lint, type check, build, the Lambda package build, the full Docker stack (started and called through nginx, then each image scanned with Trivy), a dependency scan, and the Terraform checks.
 
 - `packages/shared`: flat type normalisation, display names, and the query schemas' coercion and limits.
 - `apps/api`:
@@ -236,7 +227,11 @@ The year-on-year summary groups two years of every flat type to compute medians:
   - `ingest.test.ts`: the snapshot is used only for an empty database, a re-run replaces instead of appends, the staleness and shrink checks and `--force`, the reject limit, and a failed `VACUUM` after the commit.
   - `api.test.ts`: every endpoint against a fixture whose numbers were worked out by hand (`test/fixtures/rentals.csv`, 40 rows with known percentiles, window edges, a bad row and a `4 ROOM` spelling).
   - `summary.test.ts`: the year-on-year summary against its own small fixture (`test/fixtures/summary.csv`), with every median worked out by hand.
-  - `limits.test.ts`: rate limit, CORS, request IDs, a generic 500, and 503 when Postgres refuses connections.
+  - `limits.test.ts`: rate limit (and turning it off), CORS, request IDs, a generic 500, and 503 when Postgres refuses connections.
+  - `roles.test.ts`: the API role can read but cannot insert, update, delete or drop; the ingest role can run a full load, including the table lock and `VACUUM`, but cannot drop a table; passwords are quoted safely.
+  - `connection.test.ts`: `DATABASE_URL` wins locally; on AWS the password comes from the secret and the connection uses TLS with the RDS CA.
+  - `lambda.test.ts`: the fetch handler stores the file in S3 (and nothing when the download fails); the load handler loads the object named in the S3 notification and closes its connection.
+  - `config.test.ts`: whole-number settings from the environment are read, and bad values refused.
   - `source.test.ts`: download retries. `stats.test.ts`: the histogram and the verdict.
   - `concurrency.test.ts`: two loads at once on a real Postgres keep one copy of the data. It runs only when `DATABASE_URL` is set, because PGlite has a single connection and cannot show the race.
 - `apps/web`: formatting, the budget page (URL state, slider and checkbox requests, budget snapping, town filter, errors), the street page, the rent check, the API client's errors, the map (label sizes, selected-town outline, colour steps), the trend chart's gaps, and axe scans.
