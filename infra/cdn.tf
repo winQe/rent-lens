@@ -2,9 +2,31 @@ data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
 
-# Honours the API's own Cache-Control (public, max-age=300) and keys the cache on the query string.
-data "aws_cloudfront_cache_policy" "origin_headers" {
-  name = "Managed-UseOriginCacheControlHeaders-QueryStrings"
+# For /api/*: keys the cache on the query string only and honours the API's own Cache-Control
+# (public, max-age=300). A custom policy, because the managed "UseOriginCacheControlHeaders" ones put
+# Host in the cache key, and CloudFront forwards cache-key headers to the origin: API Gateway would
+# then receive the CloudFront hostname and reject every request.
+resource "aws_cloudfront_cache_policy" "api" {
+  name        = "${local.name}-api"
+  comment     = "API: cache by query string, honour the origin's Cache-Control"
+  min_ttl     = 0
+  default_ttl = 0
+  max_ttl     = 3600
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_gzip   = true
+    enable_accept_encoding_brotli = true
+
+    headers_config {
+      header_behavior = "none"
+    }
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "all"
+    }
+  }
 }
 
 data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
@@ -112,7 +134,7 @@ resource "aws_cloudfront_distribution" "main" {
     allowed_methods          = ["GET", "HEAD", "OPTIONS"]
     cached_methods           = ["GET", "HEAD"]
     compress                 = true
-    cache_policy_id          = data.aws_cloudfront_cache_policy.origin_headers.id
+    cache_policy_id          = aws_cloudfront_cache_policy.api.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
   }
 
