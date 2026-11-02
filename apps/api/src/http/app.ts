@@ -19,7 +19,10 @@ export interface AppOptions {
   db: Db;
   logger: Logger;
   corsOrigins: string[];
-  /** Requests per minute per IP on /api. */
+  /**
+   * Requests per minute per IP on /api; 0 turns the limiter off. The count lives in this process's
+   * memory, so it only fits a single server; on AWS, API Gateway throttles instead.
+   */
   rateLimitPerMinute?: number;
 }
 
@@ -54,16 +57,18 @@ export function createApp({ db, logger, corsOrigins, rateLimitPerMinute = 120 }:
   });
 
   const api = express.Router();
-  api.use(
-    rateLimit({
-      windowMs: 60_000,
-      limit: rateLimitPerMinute,
-      standardHeaders: 'draft-8',
-      legacyHeaders: false,
-      // Same { error } JSON shape as every other error response.
-      message: { error: 'Too many requests, please try again in a minute.' },
-    }),
-  );
+  if (rateLimitPerMinute > 0) {
+    api.use(
+      rateLimit({
+        windowMs: 60_000,
+        limit: rateLimitPerMinute,
+        standardHeaders: 'draft-8',
+        legacyHeaders: false,
+        // Same { error } JSON shape as every other error response.
+        message: { error: 'Too many requests, please try again in a minute.' },
+      }),
+    );
+  }
   api.get('/meta', get(db, z.object({}), getMeta));
   api.get('/towns', get(db, townsQuery, getTowns));
   api.get('/streets', get(db, streetsQuery, getStreets));
