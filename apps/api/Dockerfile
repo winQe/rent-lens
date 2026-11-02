@@ -20,6 +20,10 @@ FROM base AS prod-deps
 RUN yarn workspaces focus @rent-lens/api --production
 
 FROM node:24-alpine
+# The API runs `node` only. npm and corepack come with the base image and carry their own
+# vulnerable dependencies (found by the Trivy image scan in CI), so remove them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/migrations \
     SNAPSHOT_PATH=/app/data/rentals-snapshot.csv.gz
