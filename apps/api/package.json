@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "node build.mjs",
+    "build:lambda": "node build-lambda.mjs",
     "start": "node dist/main.js",
     "migrate": "tsx src/cli/migrate.ts",
     "ingest": "tsx src/cli/ingest.ts",
