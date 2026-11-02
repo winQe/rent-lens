@@ -1,12 +1,13 @@
 # One command runs everything locally:  docker compose up --build
-#
-# Database passwords: the defaults below are for this local, throwaway stack only. The database
-# listens on 127.0.0.1 and holds public data. To use your own, set them in a .env file next to this
-# one (see .env.example). Production passwords live in AWS Secrets Manager, never in the repo.
 # then open http://localhost:8080
 #
 # Ports are bound to 127.0.0.1 only: the database password is a dev default, and the API
-# trusts X-Forwarded-For from one proxy hop, which only nginx should provide.
+# trusts X-Forwarded-For from one proxy hop, which only nginx should provide. If a port is in
+# use, set WEB_PORT, API_PORT or DB_PORT in a .env file next to this one (see .env.example).
+#
+# Database passwords: the defaults below are for this local, throwaway stack only. The database
+# listens on 127.0.0.1 and holds public data. To use your own, set them in .env too.
+# Production passwords live in AWS Secrets Manager, never in the repo.
 services:
   db:
     image: postgres:17-alpine
@@ -16,7 +17,7 @@ services:
       POSTGRES_PASSWORD: ${DB_OWNER_PASSWORD:-rentlens}
       POSTGRES_DB: rentlens
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -54,7 +55,7 @@ services:
       CORS_ORIGINS: http://localhost:8080
       PORT: "3000"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 5s
@@ -70,7 +71,7 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
     depends_on:
       api:
         condition: service_healthy
