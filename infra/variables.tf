@@ -77,13 +77,13 @@ variable "lambda_adapter_layer_version" {
 }
 
 variable "api_package_path" {
-  description = "Zip of the API Lambda: the esbuild bundle (apps/api/dist), production node_modules and run.sh. Built by CI."
+  description = "Zip of the API Lambda (main.mjs, run.sh, rds-ca.pem), built by `corepack yarn workspace @rent-lens/api build:lambda`."
   type        = string
   default     = "../build/api.zip"
 }
 
 variable "ingest_package_path" {
-  description = "Zip of the ingest Lambdas (fetch and load entry points). Built by CI."
+  description = "Zip of the ingest Lambdas (fetch.mjs, load.mjs, rds-ca.pem), built by `corepack yarn workspace @rent-lens/api build:lambda`."
   type        = string
   default     = "../build/ingest.zip"
 }

@@ -2,9 +2,11 @@ locals {
   adapter_layer_arn = "arn:aws:lambda:${var.region}:753240598075:layer:LambdaAdapterLayerArm64:${var.lambda_adapter_layer_version}"
   dataset_key       = "rentals/latest.csv"
 
+  # The Lambdas connect over TLS, checked against the RDS CA bundle that build-lambda.mjs puts in each zip.
   db_env = {
-    DB_HOST = aws_db_instance.main.address
-    DB_NAME = aws_db_instance.main.db_name
+    DB_HOST    = aws_db_instance.main.address
+    DB_NAME    = aws_db_instance.main.db_name
+    DB_CA_PATH = "/var/task/rds-ca.pem"
   }
 }
 

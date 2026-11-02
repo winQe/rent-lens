@@ -171,6 +171,11 @@ run "lambdas_sit_where_the_design_says" {
   }
 
   assert {
+    condition     = aws_lambda_function.api.environment[0].variables["DB_CA_PATH"] == "/var/task/rds-ca.pem" && aws_lambda_function.load.environment[0].variables["DB_CA_PATH"] == "/var/task/rds-ca.pem"
+    error_message = "The Lambdas that connect to Postgres must check TLS against the RDS CA bundle in their package."
+  }
+
+  assert {
     condition     = aws_lambda_function.api.environment[0].variables["DB_POOL_MAX"] == "1"
     error_message = "A Lambda instance serves one request at a time: one Postgres connection each keeps the total at the reserved concurrency."
   }
