@@ -84,7 +84,7 @@ These come from looking at the real data, not from guesses:
 
 ## AWS
 
-[`infra/`](infra) holds Terraform for the AWS deployment. It passes `terraform validate`, and CI checks it, but it has not been applied to an account:
+[`infra/`](infra) holds Terraform for the AWS deployment. It has not been applied to an account. Instead, CI runs `terraform validate`, `terraform test` against a mocked AWS provider (checking, for example, that the database is private and encrypted and that only the Lambdas can reach it), and a Trivy security scan. The design:
 
 - CloudFront serves the React build from a private S3 bucket and forwards `/api/*` to API Gateway, then to a Lambda running the Express app.
 - RDS Postgres sits in private subnets, reachable only from the Lambdas. RDS keeps the password in Secrets Manager.
