@@ -13,13 +13,16 @@ export interface PgOptions {
   queryTimeoutMs?: number;
 }
 
-export function createPgDb(connectionString: string, { maxConnections = 5, statementTimeoutMs, queryTimeoutMs }: PgOptions = {}): Db {
+/** A connection string (local, Docker), or explicit settings with TLS (AWS, see connection.ts). */
+export type Connection = string | pg.ClientConfig;
+
+export function createPgDb(connection: Connection, { maxConnections = 5, statementTimeoutMs, queryTimeoutMs }: PgOptions = {}): Db {
   // jit=off: the percentile aggregates push the planner's cost estimate over jit_above_cost,
   // so Postgres spends ~100 ms compiling a query that runs in ~7 ms. Measured on the full
   // dataset; see "Query performance" in docs/DESIGN.md. On RDS this also goes in the parameter group.
   const settings = ['-c jit=off', ...(statementTimeoutMs ? [`-c statement_timeout=${statementTimeoutMs}`] : [])];
   const pool = new pg.Pool({
-    connectionString,
+    ...(typeof connection === 'string' ? { connectionString: connection } : connection),
     max: maxConnections,
     // Fail fast instead of queueing requests forever when the database is unreachable.
     connectionTimeoutMillis: 5_000,
