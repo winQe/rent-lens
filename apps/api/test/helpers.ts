@@ -35,9 +35,9 @@ export async function createTestDb(): Promise<Db> {
   return db;
 }
 
-export async function createSeededDb(): Promise<Db> {
+export async function createSeededDb(fixture = FIXTURE): Promise<Db> {
   const db = await createTestDb();
-  const parsed = parseRentalCsv(await readFile(FIXTURE, 'utf8'));
+  const parsed = parseRentalCsv(await readFile(fixture, 'utf8'));
   await replaceRentals(db, parsed.rows, parsed.rejected, 'fixture');
   return db;
 }

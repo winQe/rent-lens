@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { rentCheckQuery, streetDetailQuery, streetsQuery, townsQuery } from '@rent-lens/shared';
+import { rentCheckQuery, streetDetailQuery, streetsQuery, summaryQuery, townsQuery } from '@rent-lens/shared';
 import cors from 'cors';
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
@@ -13,6 +13,7 @@ import { getMeta } from '../handlers/meta.ts';
 import { checkRent } from '../handlers/rentCheck.ts';
 import { getStreetDetail } from '../handlers/streetDetail.ts';
 import { getStreets } from '../handlers/streets.ts';
+import { getSummary } from '../handlers/summary.ts';
 import { getTowns } from '../handlers/towns.ts';
 
 export interface AppOptions {
@@ -74,6 +75,7 @@ export function createApp({ db, logger, corsOrigins, rateLimitPerMinute = 120 }:
   api.get('/streets', get(db, streetsQuery, getStreets));
   api.get('/streets/detail', get(db, streetDetailQuery, getStreetDetail));
   api.get('/rent-check', get(db, rentCheckQuery, checkRent));
+  api.get('/summary', get(db, summaryQuery, getSummary));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

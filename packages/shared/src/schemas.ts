@@ -41,7 +41,12 @@ export const rentCheckQuery = z.object({
   rent: budget,
 });
 
+export const summaryQuery = z.object({
+  flatType,
+});
+
 export type TownsQuery = z.infer<typeof townsQuery>;
 export type StreetsQuery = z.infer<typeof streetsQuery>;
 export type StreetDetailQuery = z.infer<typeof streetDetailQuery>;
 export type RentCheckQuery = z.infer<typeof rentCheckQuery>;
+export type SummaryQuery = z.infer<typeof summaryQuery>;
