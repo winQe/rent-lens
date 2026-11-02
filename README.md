@@ -16,7 +16,7 @@ docker compose up --build
 
 Then open http://localhost:8080. The first start downloads the dataset from data.gov.sg and loads it into Postgres before the API starts. If data.gov.sg cannot be reached, it loads the snapshot bundled in `data/` instead, so the app also starts offline.
 
-The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Postgres on 5432.
+The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Postgres on 5432. The database passwords in `docker-compose.yml` are defaults for this local stack only; to use your own, copy `.env.example` to `.env`.
 
 ## Screenshots
 
