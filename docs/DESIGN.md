@@ -160,6 +160,8 @@ Routes are versioned under `/api/v1`, so a breaking change can ship as `/api/v2`
 
 Errors are all `{ "error": "..." }` JSON: 400 with field errors, 404 for an unknown street or route (including `/api/...` without the version), 429 over the rate limit, 503 before any data is loaded or when Postgres cannot be reached, and 500 with no internal detail.
 
+Each request runs in one `REPEATABLE READ, READ ONLY` transaction, so the data window and the statistics come from the same snapshot even if a load commits mid-request. A rent check for a street with no rentals of the flat type returns 404, as the street page does, and a parameter given twice gets a 400 that says so.
+
 Timeouts on the API's connection pool: 10 s `statement_timeout` on the server, 15 s `query_timeout` on the client (for a dead network path), and 5 s to connect. The ingest job has no statement timeout.
 
 ## 5. Technical decisions
@@ -236,12 +238,9 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
 
 ## 9. Known limitations
 
-- Each handler reads the window and the statistics in separate statements, so a response that overlaps an ingest commit could mix the old window with new figures. It is rare (one load a month, 5-minute cache); a `REPEATABLE READ` transaction per request would remove it.
 - The dataset download has no size limit. That is fine for a 10 MB file from data.gov.sg; add a byte limit if the source ever becomes untrusted.
-- The rent check returns a town comparison for a street that does not exist, where the street page returns 404. The web app never sends such a request.
 - The search replaces the browser history entry, so Back leaves the page instead of stepping through earlier searches. "Back to results" on the street page restores the full search.
 - nginx answers some `/api/` errors itself, in HTML: 414 for a URL over 8 KB, 502 when the API is down, and a redirect for `/api` without the slash. The web client handles errors that are not JSON.
-- A repeated query parameter (`budget=1&budget=2`) gets the right status, 400, but an unclear message.
 - `?flatType=1-ROOM` loads 1-room results, but there is no 1-room choice in the UI (too few rentals), so no flat type is selected.
 
 ### Application code for AWS
