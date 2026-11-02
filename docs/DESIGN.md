@@ -131,7 +131,8 @@ infra/            Terraform for the AWS deployment
 - **Postgres settings:** `jit=off` and `statement_timeout` go in the RDS parameter group.
 - **Rate limiting:** API Gateway throttling. The in-memory limiter in the API counts per instance, so it only protects the local setup.
 - **Monthly ingest in two steps:** EventBridge Scheduler starts a "fetch" Lambda outside the VPC, which downloads from data.gov.sg into S3. The new file starts a "load" Lambda inside the VPC, which reads it through a gateway endpoint and loads Postgres. This avoids a NAT gateway, which charges for every hour it runs and for every GB it processes. The load Lambda has a concurrency of 1, and the table lock still guards against overlapping loads.
-- **Secrets:** RDS creates the database password and keeps it in Secrets Manager, so it never appears in Terraform state. The Lambdas in the VPC read it through an interface endpoint.
+- **Secrets:** RDS creates the master password and keeps it in Secrets Manager. Terraform also creates one empty secret per login role and gives each Lambda read access to its own only: the API reads the `rentlens_api` secret and the load Lambda the `rentlens_ingest` one. No Lambda can read the master password, and no password enters Terraform state. The Lambdas read their secret through an interface endpoint.
+- **First deploy:** a one-time provisioning step, run with the master password, applies the migrations, generates a password for each login role, stores it in that role's secret, and runs the `roles` command with it.
 - **Monitoring:** CloudWatch alarms on API 5xx responses, on a failed fetch or load (a failed monthly ingest otherwise goes unnoticed, because last month's data stays in place), and on database storage and CPU, sent to an SNS topic.
 
 The Terraform is in `infra/`. It has not been applied to an AWS account, so CI checks it in three ways on every pull request:
@@ -208,6 +209,7 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
 - Text colours pass WCAG AA. Form control borders are 3:1 or more (WCAG 1.4.11). Map labels switch between dark and white text by fill, and the map scale is one hue from light to dark, so it reads without colour vision. The rent-check bar for your rent has an outline and is named in the caption, not shown by colour alone.
 - A skip link, visible focus outlines, and a layout that works at 390 px wide.
 - axe-core runs in the component tests. Colour contrast is checked by hand, because jsdom cannot compute it.
+- Database: the API logs in as `rentlens_api`, which can only `SELECT`. The ingest logs in as `rentlens_ingest`, which can replace the data and run `VACUUM` (Postgres 17's `MAINTAIN` privilege) but cannot change the schema. Only migrations use the owner. `migrations/002_roles.sql` creates the roles, and the `roles` command sets their passwords from the environment, quoted by Postgres itself with `format('%L')`.
 - API: helmet headers, a GET-only CORS allow-list, a rate limit, zod checks, parameterised SQL only, no stack traces in responses, an incoming `x-request-id` accepted only as `[A-Za-z0-9-]{1,64}`, and control characters rejected in names.
 - nginx (the local stand-in for CloudFront): a Content Security Policy, `X-Frame-Options: DENY`, `nosniff`, a one-year cache for hashed assets, `no-cache` on the app shell, and the API found through Docker DNS on each request.
 - docker compose: Postgres and the API listen on 127.0.0.1 only, because the API trusts one proxy hop for `X-Forwarded-For`, which only nginx should send. Services restart on failure, and the web container starts after the API's health check passes.
@@ -241,8 +243,7 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
 
 The Terraform describes the target. These application changes are still needed before it can run there:
 
-- **Database settings:** the API reads `DATABASE_URL`. On AWS the Lambdas get `DB_HOST`, `DB_NAME` and `DB_SECRET_ARN` instead, so `config.ts` needs to read the password from Secrets Manager at start-up.
+- **Database settings:** the API reads `DATABASE_URL`. On AWS the Lambdas get `DB_HOST`, `DB_NAME`, `DB_USER` and `DB_SECRET_ARN` instead, so `config.ts` needs to read the password from Secrets Manager at start-up.
 - **Ingest entry points:** two small Lambda handlers. "fetch" calls the existing `downloadDataset` and writes the file to S3; "load" reads it from S3 and calls the existing `ingest` with that file.
 - **Packaging:** CI should build `api.zip` (the esbuild bundle, production `node_modules` and a `run.sh` that starts `node dist/main.js`) and `ingest.zip`, which the Terraform takes as `api_package_path` and `ingest_package_path`.
 - **Production hardening** (Trivy MEDIUM and LOW findings): CloudFront and S3 access logs, VPC flow logs, X-Ray tracing on the Lambdas, RDS IAM authentication, and a WAF in front of CloudFront.
-- **Database roles:** everything logs in as the one `rentlens` user. The API should use a role that can only read, and only the load step should be able to write. Roles live inside Postgres, so they belong in a migration, with their passwords in Secrets Manager.

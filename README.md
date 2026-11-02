@@ -91,11 +91,12 @@ These come from looking at the real data, not from guesses:
 - Each month, EventBridge Scheduler starts a Lambda that downloads the dataset to S3, and the new file starts a second Lambda inside the VPC that loads it. Splitting the ingest this way avoids a NAT gateway.
 - CloudWatch alarms cover API errors, failed ingests and database storage and CPU.
 
-The section "Not built yet for AWS" in `docs/DESIGN.md` lists what the application still needs before it can run there: reading the database secret at start-up, the two ingest entry points, Lambda packaging in CI, and separate read and write database roles.
+The section "Not built yet for AWS" in `docs/DESIGN.md` lists what the application still needs before it can run there: reading the database secret at start-up, the two ingest entry points, and Lambda packaging in CI.
 
 ## Accessibility and security
 
 - Labelled controls, a keyboard path for everything the map shows ("Top towns" and the town select), text contrast of 4.5:1 or more, and axe checks in the component tests. The layout works at 390 px wide.
+- The API logs in to Postgres as a role that can only read. Only the ingest can write, and only migrations can change the schema.
 - The API checks every input with zod, uses parameterised SQL only, sends security headers (helmet), allows GET only from listed origins, limits the request rate, and never returns stack traces. nginx sends a Content Security Policy.
 
 ## Assumptions and limits
@@ -110,7 +111,6 @@ The section "Not built yet for AWS" in `docs/DESIGN.md` lists what the applicati
 ## With more time
 
 - The AWS application changes listed above, then a deploy from CI.
-- Separate read-only and write database roles.
 - One end-to-end test in a real browser (Playwright), including the phone layout.
 - Rent against buy, with the HDB resale dataset.
 

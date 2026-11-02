@@ -73,6 +73,7 @@ Check a query change with `EXPLAIN (ANALYZE)` on the full dataset, not only the 
 
 - **Migrations** are `.sql` files in `apps/api/migrations/`, applied in name order and recorded by file name. Never edit an applied migration's behaviour; add a new numbered file.
 - **The ingest** replaces the whole table in one transaction, under `LOCK TABLE rental_approval IN EXCLUSIVE MODE`, then runs `VACUUM ANALYZE`. Keep the lock: without it, two overlapping loads store every row twice.
+- **Roles:** the API logs in as `rentlens_api` (`SELECT` only) and the ingest as `rentlens_ingest` (data, not schema). Migrations run as the owner. A new table needs `GRANT`s in its migration, or the API and ingest cannot use it. `corepack yarn roles` sets the login passwords from `API_DB_PASSWORD` and `INGEST_DB_PASSWORD`; docker compose does this in its setup job.
 - **The API connects with `jit=off`.** With JIT on, Postgres spends about 100 ms compiling the percentile queries, which then run in about 7 ms.
 
 ### Web
