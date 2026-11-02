@@ -109,7 +109,7 @@ run "database_is_private_and_encrypted" {
   }
 }
 
-run "postgres_settings_match_the_local_api" {
+run "postgres_settings" {
   command = plan
 
   assert {
@@ -118,8 +118,13 @@ run "postgres_settings_match_the_local_api" {
   }
 
   assert {
-    condition     = contains([for p in aws_db_parameter_group.main.parameter : "${p.name}=${p.value}"], "statement_timeout=10000")
-    error_message = "The statement timeout must match the local API's 10 s."
+    condition     = !contains([for p in aws_db_parameter_group.main.parameter : p.name], "statement_timeout")
+    error_message = "statement_timeout must not be set for every role: the ingest and migrations run long statements. The API sets its own per connection."
+  }
+
+  assert {
+    condition     = aws_cloudwatch_log_group.rds.name == "/aws/rds/instance/rent-lens-prod/postgresql" && aws_cloudwatch_log_group.rds.retention_in_days == var.log_retention_days
+    error_message = "The RDS log group must be managed, with a retention period, so RDS does not keep logs forever."
   }
 }
 
@@ -164,6 +169,21 @@ run "lambdas_sit_where_the_design_says" {
     condition     = aws_lambda_function.api.environment[0].variables["AWS_LAMBDA_EXEC_WRAPPER"] == "/opt/bootstrap"
     error_message = "The API Lambda must start through the Lambda Web Adapter."
   }
+
+  assert {
+    condition     = aws_lambda_function.api.environment[0].variables["DB_POOL_MAX"] == "1"
+    error_message = "A Lambda instance serves one request at a time: one Postgres connection each keeps the total at the reserved concurrency."
+  }
+
+  assert {
+    condition     = aws_lambda_function.api.environment[0].variables["RATE_LIMIT_PER_MINUTE"] == "0"
+    error_message = "The in-memory rate limiter must be off on AWS; it counts per instance, and API Gateway throttles instead."
+  }
+
+  assert {
+    condition     = alltrue([for f in [aws_lambda_function.api, aws_lambda_function.fetch, aws_lambda_function.load] : f.runtime == "nodejs24.x"])
+    error_message = "The Lambdas must run Node 24, the version CI and Docker test."
+  }
 }
 
 run "each_lambda_reads_only_its_own_database_login" {
@@ -184,6 +204,17 @@ run "each_lambda_reads_only_its_own_database_login" {
   assert {
     condition     = aws_lambda_function.load.environment[0].variables["DB_USER"] == "rentlens_ingest" && aws_lambda_function.load.environment[0].variables["DB_SECRET_ARN"] == aws_secretsmanager_secret.db_login["ingest"].arn
     error_message = "The load Lambda must log in as the rentlens_ingest role."
+  }
+
+  # IAM: each role's policy may read only its own secret.
+  assert {
+    condition     = toset(data.aws_iam_policy_document.read_api_db_secret.statement[0].resources) == toset([aws_secretsmanager_secret.db_login["api"].arn])
+    error_message = "The API role's policy must allow reading the rentlens_api secret and nothing else."
+  }
+
+  assert {
+    condition     = toset(one([for st in data.aws_iam_policy_document.load_access.statement : st.resources if contains(st.actions, "secretsmanager:GetSecretValue")])) == toset([aws_secretsmanager_secret.db_login["ingest"].arn])
+    error_message = "The load role's policy must allow reading the rentlens_ingest secret and nothing else."
   }
 
   assert {
@@ -218,6 +249,14 @@ run "cloudfront_serves_https_with_security_headers" {
   assert {
     condition     = one([for b in aws_cloudfront_distribution.main.ordered_cache_behavior : b.viewer_protocol_policy if b.path_pattern == "/api/*"]) == "https-only"
     error_message = "The API must be reachable over HTTPS only, on the app's own origin."
+  }
+
+  assert {
+    condition = (
+      aws_cloudfront_cache_policy.api.parameters_in_cache_key_and_forwarded_to_origin[0].headers_config[0].header_behavior == "none"
+      && aws_cloudfront_cache_policy.api.parameters_in_cache_key_and_forwarded_to_origin[0].cookies_config[0].cookie_behavior == "none"
+    )
+    error_message = "The API cache key must hold no headers (Host would reach API Gateway and be rejected) and no cookies."
   }
 
   assert {
