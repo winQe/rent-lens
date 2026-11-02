@@ -18,6 +18,20 @@ Then open http://localhost:8080. The first start downloads the dataset from data
 
 The services listen on 127.0.0.1 only: the app on 8080, the API on 3000 and Postgres on 5432.
 
+## Screenshots
+
+**A street:** the typical range, the rent check with the listing's rent marked on the histogram, and the quarterly trend against all of Singapore.
+
+![Yishun Ring Rd: most 4-room rents from S$2,963 to S$3,300, a S$3,400 listing marked above most rents, and the quarterly trend](docs/screenshot-street.png)
+
+**One town:** picking Yishun, in the list or on the map, outlines it and filters the streets.
+
+![The budget page filtered to Yishun, with Yishun outlined on the map and 7 streets that fit](docs/screenshot-town.png)
+
+**On a phone:** the same page at 390 px wide.
+
+<img src="docs/screenshot-phone.png" alt="The budget page on a phone, 390 px wide" width="300">
+
 ## Develop
 
 Node 22 or later, with Yarn 4 through corepack:
@@ -67,21 +81,6 @@ These come from looking at the real data, not from guesses:
 - **The street is the smallest unit.** A block has a median of 2 rentals a year, too few to compare, so there are no figures per block.
 - **Streets with fewer than 10 rentals are "low data".** They are hidden by default, and tagged and sorted last when shown. The rent check compares with the whole town when a street has too few rentals, and says so.
 - **Every figure covers the latest 12 months in the data,** not the 12 months before today, because HDB publishes with a delay. The trend is quarterly, because one street has too few rentals a month for a stable figure.
-
-## Key decisions
-
-| Decision | Why |
-|---|---|
-| Postgres with SQL written by hand | Every query is an aggregate (`percentile_cont`, `count(*) FILTER`, `LATERAL`) that an ORM cannot express. The SQL in the code is the SQL that was measured. |
-| Covering indexes, `jit=off`, `VACUUM ANALYZE` after each load | Measured with `EXPLAIN ANALYZE`: the main query went from about 110 ms to about 7 ms. With JIT on, Postgres spent about 100 ms compiling it. |
-| The ingest replaces the table in one transaction under a table lock | Readers see the old data until the commit, a re-run gives the same result, and two overlapping loads cannot store every row twice (reproduced before the fix). |
-| Checks on every load | Rows with an impossible month or rent are rejected, and a load stops if too many rows are bad, or if the new data is older or much smaller than what is loaded. |
-| Bundled snapshot, used only for an empty database | The app must start without internet, but a failed download must never replace newer data with the older snapshot. |
-| PGlite in tests | Real Postgres compiled to WebAssembly, so the tests run the real SQL and migrations without a server. |
-| Zod schemas in a shared package | The API and the web app check requests with the same code. |
-| Search state in the URL | Results can be shared, bookmarked and reached with Back. |
-| SVG map from data.gov.sg boundaries | No map service or API key, it works offline, and every area is a real element for labels, clicks and accessible text. |
-| Lambda and API Gateway on AWS | Pay per request for a low-traffic app; the same Express app runs unchanged through the Lambda Web Adapter. |
 
 ## AWS
 
