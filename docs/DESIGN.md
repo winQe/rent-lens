@@ -164,19 +164,15 @@ Timeouts on the API's connection pool: 10 s `statement_timeout` on the server, 1
 
 ## 5. Technical decisions
 
+Stack: React 19, Vite, Tailwind v4 and TanStack Query for the web app; Node, Express 5, zod, pino and helmet for the API; Postgres 17; Yarn 4 workspaces, TypeScript 7 for type checks, Biome, and esbuild to bundle the API.
+
+The choices below are the ones a reader might question.
+
 | Choice | Why | Instead of |
 |---|---|---|
-| React, TypeScript and Vite | no login and no search-engine need, so a static build is enough | Next.js, which adds a server for no benefit here |
-| Tailwind v4 with theme tokens in `@theme` | styles sit next to the markup; tokens keep colours and sizes consistent | hand-written CSS |
-| TanStack Query | caching, loading and error states, cancelled stale requests, and the previous result stays on screen while the slider moves | `fetch` in `useEffect` |
-| `use-debounce` on the budget | one request after the slider stops, not one per step | a custom hook |
 | All search state in the URL | results can be shared and bookmarked | component state |
 | Map as SVG from data.gov.sg boundaries (12 KB, built by `apps/web/scripts/build-map.mjs`) | no API key, no map tiles, works offline, real elements for labels and clicks | Leaflet or Mapbox |
 | Charts as SVG written by hand | two small charts, with full control of the accessible text | a chart library |
-| Node, TypeScript and Express 5 | one language end to end | Fastify, .NET |
-| pino and pino-http | JSON logs with request IDs, ready for CloudWatch | `console` logs |
-| helmet, cors (GET only), express-rate-limit | security headers, an origin allow-list, and an abuse limit | none |
-| zod schemas in the shared package | the API and the web app use the same types and checks | types written twice |
 | Postgres with SQL written by hand through `pg` | every query uses `percentile_cont`, `count(*) FILTER`, `LATERAL` or `json_agg`, which an ORM cannot express; the code shows the same SQL that `EXPLAIN` measured | Prisma or Drizzle (these queries would all be raw SQL); Kysely or pgtyped if checked result types were wanted |
 | No materialized view | live queries take 3 to 8 ms (section 6) | precomputed quartiles |
 | No DynamoDB | a key-value store has no aggregation, so percentiles would move into code | DynamoDB |
@@ -185,9 +181,6 @@ Timeouts on the API's connection pool: 10 s `statement_timeout` on the server, 1
 | Ingest checks | a row is rejected if its month is outside Jan 2021 to now or its rent is not whole dollars up to S$50,000; a load stops if over 1% of rows are rejected, if its data ends earlier than the loaded data, or if it has over 20% fewer rows (`--force` overrides the last two) | trusting the source |
 | Bundled snapshot, used only when the database is empty | data.gov.sg limits bursts of requests, and the app must start on a machine without internet; once data is loaded, a failed download keeps it | always falling back |
 | PGlite in tests | real Postgres in WebAssembly, so the real SQL and migrations run with no server | a mocked database |
-| TypeScript 7 (the Go compiler) for type checks | `tsc --noEmit` takes about 0.1 s per workspace; Vite, Vitest, tsx and esbuild remove types themselves, so nothing else depends on the `typescript` package | TypeScript 6 (0.8 s on the web app) |
-| esbuild bundle for the API | one file per entry point, which is also what a Lambda ships | `tsc` output |
-| Yarn 4 workspaces through corepack, `nodeLinker: node-modules` | a pinned Yarn version and a 24-hour package age gate in `.yarnrc.yml` (`npmMinimalAgeGate: 1440`) against supply-chain attacks; Plug'n'Play breaks tsx and esbuild | npm |
 
 ## 6. Query performance
 
