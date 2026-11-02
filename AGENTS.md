@@ -12,6 +12,7 @@ apps/api          Express 5 API, SQL handlers, migrations, ingest job (download,
 apps/web          React 19 + Vite + Tailwind v4 app, SVG map and charts
 data/             gzipped dataset snapshot, used only when the database is empty and data.gov.sg cannot be reached
 docs/DESIGN.md    design document
+infra/            Terraform for the AWS deployment (not applied to an account)
 ```
 
 In `apps/api/src`: `handlers/` (one file per endpoint, all SQL), `http/app.ts` (routes, middleware, errors), `ingest/` (source, parse, load), `db/` (the `Db` interface, the `pg` pool, the migration runner), `cli/` (migrate and ingest entry points).
@@ -29,6 +30,7 @@ Run from the repo root. Use `corepack yarn`, never npm.
 | Lint and format check | `corepack yarn lint` |
 | Format and fix | `corepack yarn format` |
 | Build | `corepack yarn build` |
+| Terraform check | `terraform -chdir=infra fmt -check -recursive`, then `terraform -chdir=infra init -backend=false` and `terraform -chdir=infra validate` |
 
 Development without Docker for the app:
 

@@ -101,10 +101,9 @@ flowchart LR
   apigw --> apiFn
   apiFn --> rds
   scheduler --> fetchFn
-  scheduler --> loadFn
   source --> fetchFn
   fetchFn --> s3data
-  s3data -- "gateway endpoint" --> loadFn
+  s3data -- "new file starts it,<br/>read through the gateway endpoint" --> loadFn
   loadFn --> rds
   secrets -.-> apiFn
   secrets -.-> loadFn
@@ -122,6 +121,7 @@ apps/api          Express API, migrations, ingest job, tests
 apps/web          React app, map data, tests
 data/             gzipped dataset snapshot, used when data.gov.sg cannot be reached
 docs/             this file
+infra/            Terraform for the AWS deployment
 ```
 
 ### AWS choices
@@ -130,7 +130,11 @@ docs/             this file
 - **Database connections:** reserved concurrency of about 10 on the API Lambda and a pool of 1 to 2 per instance, so Postgres sees at most about 20 connections. No RDS Proxy at this traffic.
 - **Postgres settings:** `jit=off` and `statement_timeout` go in the RDS parameter group.
 - **Rate limiting:** API Gateway throttling. The in-memory limiter in the API counts per instance, so it only protects the local setup.
-- **Monthly ingest in two steps:** a "fetch" Lambda outside the VPC downloads from data.gov.sg into S3, and a "load" Lambda inside the VPC reads S3 through a gateway endpoint and loads Postgres. This avoids a NAT gateway, which charges for every hour it runs and for every GB it processes.
+- **Monthly ingest in two steps:** EventBridge Scheduler starts a "fetch" Lambda outside the VPC, which downloads from data.gov.sg into S3. The new file starts a "load" Lambda inside the VPC, which reads it through a gateway endpoint and loads Postgres. This avoids a NAT gateway, which charges for every hour it runs and for every GB it processes. The load Lambda has a concurrency of 1, and the table lock still guards against overlapping loads.
+- **Secrets:** RDS creates the database password and keeps it in Secrets Manager, so it never appears in Terraform state. The Lambdas in the VPC read it through an interface endpoint.
+- **Monitoring:** CloudWatch alarms on API 5xx responses, on a failed fetch or load (a failed monthly ingest otherwise goes unnoticed, because last month's data stays in place), and on database storage and CPU, sent to an SNS topic.
+
+The Terraform is in `infra/` and passes `terraform validate`; CI checks it on every pull request. It has not been applied to an AWS account.
 
 ## 4. API
 
@@ -226,3 +230,12 @@ So the API connects with `jit=off`, and the ingest runs `VACUUM ANALYZE` after e
 - nginx answers some `/api/` errors itself, in HTML: 414 for a URL over 8 KB, 502 when the API is down, and a redirect for `/api` without the slash. The web client handles errors that are not JSON.
 - A repeated query parameter (`budget=1&budget=2`) gets the right status, 400, but an unclear message.
 - `?flatType=1-ROOM` loads 1-room results, but there is no 1-room choice in the UI (too few rentals), so no flat type is selected.
+
+### Not built yet for AWS
+
+The Terraform describes the target. These application changes are still needed before it can run there:
+
+- **Database settings:** the API reads `DATABASE_URL`. On AWS the Lambdas get `DB_HOST`, `DB_NAME` and `DB_SECRET_ARN` instead, so `config.ts` needs to read the password from Secrets Manager at start-up.
+- **Ingest entry points:** two small Lambda handlers. "fetch" calls the existing `downloadDataset` and writes the file to S3; "load" reads it from S3 and calls the existing `ingest` with that file.
+- **Packaging:** CI should build `api.zip` (the esbuild bundle, production `node_modules` and a `run.sh` that starts `node dist/main.js`) and `ingest.zip`, which the Terraform takes as `api_package_path` and `ingest_package_path`.
+- **Database roles:** everything logs in as the one `rentlens` user. The API should use a role that can only read, and only the load step should be able to write. Roles live inside Postgres, so they belong in a migration, with their passwords in Secrets Manager.
