@@ -105,7 +105,12 @@ function get<S extends z.ZodType>(db: Db, schema: S, handler: (db: Queryable, qu
       res.status(400).json({ error: 'Invalid query parameters', details: z.flattenError(parsed.error).fieldErrors });
       return;
     }
-    const body = await handler(db, parsed.data);
+    // Every handler reads the data window and then the statistics. One repeatable-read transaction gives
+    // both the same snapshot, so a load that commits mid-request cannot mix old and new data.
+    const body = await db.transaction(async (tx) => {
+      await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+      return handler(tx, parsed.data);
+    });
     res.set('Cache-Control', CACHE_CONTROL).json(body);
   };
 }
