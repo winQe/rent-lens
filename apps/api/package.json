@@ -9,6 +9,7 @@
     "start": "node dist/main.js",
     "migrate": "tsx src/cli/migrate.ts",
     "ingest": "tsx src/cli/ingest.ts",
+    "roles": "tsx src/cli/roles.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

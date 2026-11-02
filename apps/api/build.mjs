@@ -12,6 +12,7 @@ await build({
     main: 'src/main.ts',
     migrate: 'src/cli/migrate.ts',
     ingest: 'src/cli/ingest.ts',
+    roles: 'src/cli/roles.ts',
   },
   outdir: 'dist',
   bundle: true,
