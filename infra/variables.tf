@@ -52,14 +52,8 @@ variable "db_deletion_protection" {
   default     = true
 }
 
-variable "statement_timeout_ms" {
-  description = "Postgres statement_timeout for every connection, in milliseconds. Matches the local API setting."
-  type        = number
-  default     = 10000
-}
-
 variable "api_reserved_concurrency" {
-  description = "Maximum concurrent API Lambda instances. With a pool of 2 connections each, this caps Postgres at about twice this number of connections."
+  description = "Maximum concurrent API Lambda instances. Each instance keeps one Postgres connection (DB_POOL_MAX=1), so this also caps the API's connections."
   type        = number
   default     = 10
 }

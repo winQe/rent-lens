@@ -3,7 +3,8 @@ resource "aws_db_subnet_group" "main" {
   subnet_ids = aws_subnet.private[*].id
 }
 
-# The settings the API sets per connection locally live here on RDS.
+# No statement_timeout here: it would also apply to the ingest and migrations, which run long
+# statements. The API sets its own 10 s limit on each connection.
 resource "aws_db_parameter_group" "main" {
   name   = local.name
   family = "postgres17"
@@ -13,11 +14,6 @@ resource "aws_db_parameter_group" "main" {
   parameter {
     name  = "jit"
     value = "0"
-  }
-
-  parameter {
-    name  = "statement_timeout"
-    value = tostring(var.statement_timeout_ms)
   }
 }
 
