@@ -17,6 +17,13 @@ resource "aws_db_parameter_group" "main" {
   }
 }
 
+# RDS writes PostgreSQL logs here. Declared so it gets the same retention as the other log groups;
+# left to RDS, it would keep logs forever.
+resource "aws_cloudwatch_log_group" "rds" {
+  name              = "/aws/rds/instance/${local.name}/postgresql"
+  retention_in_days = var.log_retention_days
+}
+
 resource "aws_db_instance" "main" {
   identifier     = local.name
   engine         = "postgres"
@@ -50,4 +57,6 @@ resource "aws_db_instance" "main" {
   final_snapshot_identifier = "${local.name}-final"
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
+
+  depends_on = [aws_cloudwatch_log_group.rds]
 }
