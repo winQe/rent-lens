@@ -26,6 +26,8 @@ resource "aws_subnet" "private" {
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone = local.azs[count.index]
 
+  map_public_ip_on_launch = false
+
   tags = { Name = "${local.name}-private-${local.azs[count.index]}" }
 }
 
