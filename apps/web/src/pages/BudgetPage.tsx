@@ -6,6 +6,7 @@ import { useDebounce } from 'use-debounce';
 import { api } from '../api.ts';
 import { BudgetSlider } from '../components/budget/BudgetSlider.tsx';
 import { FlatTypePicker } from '../components/budget/FlatTypePicker.tsx';
+import { InsightsCard } from '../components/budget/InsightsCard.tsx';
 import { ResultsSummary } from '../components/budget/ResultsSummary.tsx';
 import { StreetResults } from '../components/budget/StreetResults.tsx';
 import { TownMapCard } from '../components/budget/TownMapCard.tsx';
@@ -34,6 +35,13 @@ export function BudgetPage() {
       api.streets({ flatType, budget: queryBudget, town, includeLowData, page: pageParam, pageSize: PAGE_SIZE }, signal),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+    placeholderData: keepPreviousData,
+  });
+
+  // Year-on-year medians change only with the monthly load, and do not depend on the budget.
+  const summary = useQuery({
+    queryKey: ['summary', flatType],
+    queryFn: ({ signal }) => api.summary(flatType, signal),
     placeholderData: keepPreviousData,
   });
 
@@ -94,6 +102,11 @@ export function BudgetPage() {
           loadingMore={streets.isFetchingNextPage}
           onShowMore={() => streets.fetchNextPage()}
         />
+      )}
+
+      {summary.data && <InsightsCard summary={summary.data} flatLabel={flatLabel} />}
+      {summary.isError && !summary.data && (
+        <p className="text-sm text-muted">Could not load the comparison with a year before: {summary.error.message}</p>
       )}
 
       <p className="max-w-prose rounded-2xl bg-note px-5 py-4 text-note-ink">

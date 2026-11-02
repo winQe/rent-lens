@@ -5,6 +5,12 @@ const whole = new Intl.NumberFormat('en-SG', { maximumFractionDigits: 0 });
 /** S$3,000 */
 export const money = (value: number) => `S$${whole.format(value)}`;
 
+/** 0.08 -> "+8%", -0.05 -> "-5%": a change, always signed so the direction is never left to colour. */
+export function signedPercent(change: number): string {
+  const shown = Math.round(change * 100);
+  return shown > 0 ? `+${shown}%` : `${shown}%`;
+}
+
 /** 0.7407 -> "74%" */
 export const percent = (share: number) => `${Math.round(share * 100)}%`;
 
