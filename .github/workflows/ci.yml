@@ -62,6 +62,19 @@ jobs:
       - uses: ./.github/actions/setup
       - run: yarn build
 
+  lambda:
+    name: Lambda packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: yarn workspace @rent-lens/api build:lambda
+      # The bundles must load on their own, with no node_modules next to them.
+      - run: |
+          cd build/lambda
+          node --input-type=module -e "for (const f of ['fetch', 'load']) { const m = await import('./ingest/' + f + '.mjs'); if (typeof m.handler !== 'function') throw new Error(f + '.mjs has no handler'); }"
+          test -x api/run.sh && test -s api/main.mjs && test -s api/rds-ca.pem && test -s ingest/rds-ca.pem
+
   docker:
     name: Docker images
     runs-on: ubuntu-latest
