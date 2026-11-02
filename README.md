@@ -4,7 +4,9 @@ Where can I rent an HDB flat on my budget? RentLens takes a monthly budget and a
 
 The data is HDB's "Renting Out of Flats from Jan 2021" on data.gov.sg: about 212,000 rental approvals.
 
-<img src="docs/screenshot.png" alt="The budget page: a S$3,000 budget for a 4-room flat, 43 streets that fit, and a map of Singapore coloured by the share of rents within budget" width="560">
+<p align="center">
+  <img src="docs/screenshot.png" alt="The budget page: a S$3,000 budget for a 4-room flat, 43 streets that fit, and a map of Singapore coloured by the share of rents within budget" width="560">
+</p>
 
 ## Run it
 
