@@ -1,13 +1,23 @@
 locals {
   adapter_layer_arn = "arn:aws:lambda:${var.region}:753240598075:layer:LambdaAdapterLayerArm64:${var.lambda_adapter_layer_version}"
-  db_secret_arn     = aws_db_instance.main.master_user_secret[0].secret_arn
   dataset_key       = "rentals/latest.csv"
 
   db_env = {
-    DB_HOST       = aws_db_instance.main.address
-    DB_NAME       = aws_db_instance.main.db_name
-    DB_SECRET_ARN = local.db_secret_arn
+    DB_HOST = aws_db_instance.main.address
+    DB_NAME = aws_db_instance.main.db_name
   }
+}
+
+# One secret per database login role (migrations/002_roles.sql): rentlens_api can only read,
+# rentlens_ingest can write the data but not change the schema. Terraform creates the secrets
+# and decides who may read them; the one-time provisioning step generates each password, stores
+# it here, and runs the `roles` command with it, so no password ever enters Terraform state.
+# Neither Lambda can read the master password.
+resource "aws_secretsmanager_secret" "db_login" {
+  for_each = toset(["api", "ingest"])
+
+  name        = "${local.name}/db/${each.key}"
+  description = "Password of the rentlens_${each.key} database role."
 }
 
 data "aws_iam_policy_document" "lambda_assume" {
@@ -20,10 +30,10 @@ data "aws_iam_policy_document" "lambda_assume" {
   }
 }
 
-data "aws_iam_policy_document" "read_db_secret" {
+data "aws_iam_policy_document" "read_api_db_secret" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [local.db_secret_arn]
+    resources = [aws_secretsmanager_secret.db_login["api"].arn]
   }
 }
 
@@ -43,7 +53,7 @@ resource "aws_iam_role_policy_attachment" "api_vpc" {
 resource "aws_iam_role_policy" "api_secret" {
   name   = "read-db-secret"
   role   = aws_iam_role.api.id
-  policy = data.aws_iam_policy_document.read_db_secret.json
+  policy = data.aws_iam_policy_document.read_api_db_secret.json
 }
 
 resource "aws_cloudwatch_log_group" "api" {
@@ -76,6 +86,8 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = merge(local.db_env, {
+      DB_USER                      = "rentlens_api"
+      DB_SECRET_ARN                = aws_secretsmanager_secret.db_login["api"].arn
       AWS_LAMBDA_EXEC_WRAPPER      = "/opt/bootstrap"
       AWS_LWA_READINESS_CHECK_PATH = "/healthz"
       PORT                         = "8080"
@@ -150,7 +162,10 @@ resource "aws_iam_role_policy_attachment" "load_vpc" {
 }
 
 data "aws_iam_policy_document" "load_access" {
-  source_policy_documents = [data.aws_iam_policy_document.read_db_secret.json]
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.db_login["ingest"].arn]
+  }
 
   statement {
     actions   = ["s3:GetObject"]
@@ -190,8 +205,10 @@ resource "aws_lambda_function" "load" {
 
   environment {
     variables = merge(local.db_env, {
-      DATA_BUCKET = aws_s3_bucket.data.id
-      DATA_KEY    = local.dataset_key
+      DB_USER       = "rentlens_ingest"
+      DB_SECRET_ARN = aws_secretsmanager_secret.db_login["ingest"].arn
+      DATA_BUCKET   = aws_s3_bucket.data.id
+      DATA_KEY      = local.dataset_key
     })
   }
 

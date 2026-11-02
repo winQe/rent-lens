@@ -23,7 +23,12 @@ output "db_endpoint" {
   value       = aws_db_instance.main.address
 }
 
-output "db_secret_arn" {
-  description = "Secrets Manager secret that holds the database password."
-  value       = local.db_secret_arn
+output "db_master_secret_arn" {
+  description = "Secret with the master password, created by RDS. Used only to run migrations and the roles command."
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+}
+
+output "db_login_secret_arns" {
+  description = "Secrets for the rentlens_api and rentlens_ingest login roles. Provisioning stores a generated password in each."
+  value       = { for k, s in aws_secretsmanager_secret.db_login : k => s.arn }
 }
